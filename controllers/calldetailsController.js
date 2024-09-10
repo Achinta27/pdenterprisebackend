@@ -443,6 +443,7 @@ exports.excelImport = async (req, res) => {
       if (validCalldetails.length > 0) {
         try {
           const result = await CallDetails.insertMany(validCalldetails);
+          cache.flushAll();
         } catch (insertError) {
           console.error("Error during insertion:", insertError);
           return res.status(500).send({
