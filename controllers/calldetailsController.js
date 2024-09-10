@@ -3,7 +3,6 @@ const CallDetails = require("../models/calldetailsModel");
 const path = require("path");
 const fs = require("fs");
 const fastcsv = require("fast-csv");
-const XLSX = require("xlsx");
 // Counter Schema for generating unique IDs
 const counterSchema = new mongoose.Schema({
   _id: { type: String, required: true },
@@ -558,83 +557,12 @@ exports.exportCallDetails = async (req, res) => {
       };
     }
 
-    // Fetch all matching documents without pagination
+    // Fetch all matching documents
     const callDetails = await CallDetails.find(match).sort({ createdAt: -1 });
 
-    // Define the columns for the export
-    const columns = [
-      "callDate",
-      "visitdate",
-      "callNumber",
-      "brandName",
-      "customerName",
-      "address",
-      "route",
-      "contactNumber",
-      "whatsappNumber",
-      "engineer",
-      "productsName",
-      "warrantyTerms",
-      "TAT",
-      "serviceType",
-      "remarks",
-      "parts",
-      "jobStatus",
-      "modelNumber",
-      "iduser",
-      "closerCode",
-      "dateofPurchase",
-      "oduser",
-      "followupdate",
-      "gddate",
-      "receivefromEngineer",
-      "amountReceived",
-      "commissionow",
-      "serviceChange",
-      "commissionDate",
-      "NPS",
-      "incentive",
-      "expenses",
-      "approval",
-      "totalAmount",
-      "commissioniw",
-      "partamount",
-    ];
-
-    // Prepare data for export, selecting only the specified columns
-    const dataToExport = callDetails.map((detail) =>
-      columns.reduce((obj, col) => {
-        obj[col] = detail[col] || ""; // Use empty string if field is missing
-        return obj;
-      }, {})
-    );
-
-    // Create a new workbook and add the worksheet
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport, {
-      header: columns,
+    return res.status(200).json({
+      data: callDetails, // Return the filtered data as JSON
     });
-
-    // Append worksheet to the workbook
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Call Details");
-
-    // Write the Excel file to memory (Buffer)
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "buffer",
-    });
-
-    // Set appropriate headers and send the file
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="Call_Details_${new Date().toISOString()}.xlsx"`
-    );
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-
-    return res.send(excelBuffer);
   } catch (error) {
     console.error("Error exporting call details:", error);
     res.status(500).json({
