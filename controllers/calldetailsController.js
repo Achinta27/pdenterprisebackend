@@ -341,6 +341,7 @@ exports.excelImport = async (req, res) => {
     const fileExtension = path.extname(file.name).toLowerCase();
     if (fileExtension !== ".csv") {
       console.log("Unsupported file type");
+      fs.unlinkSync(filePath);
       return res.status(400).send({ message: "Only CSV files are supported" });
     }
 
@@ -465,14 +466,21 @@ exports.excelImport = async (req, res) => {
     });
 
     csvStream.on("error", (error) => {
+      fs.unlinkSync(filePath);
       console.error("Error during CSV file processing:", error);
       return res.status(500).send({ message: "Error processing file", error });
     });
 
     stream.pipe(csvStream);
   } catch (error) {
+    fs.unlinkSync(filePath);
     console.error("Error processing file:", error);
     res.status(500).send({ message: "Error processing file", error });
+  } finally {
+    // Always delete the uploaded file to avoid memory issues
+    if (filePath && fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
   }
 };
 
