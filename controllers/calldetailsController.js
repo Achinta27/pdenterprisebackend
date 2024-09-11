@@ -518,6 +518,8 @@ exports.exportCallDetails = async (req, res) => {
       notClose,
       startDate,
       endDate,
+      skip = 0, // For pagination
+      limit = 40000, // Maximum 40K records in one batch
     } = req.query;
 
     const match = {};
@@ -566,11 +568,24 @@ exports.exportCallDetails = async (req, res) => {
       };
     }
 
-    // Fetch all matching documents
-    const callDetails = await CallDetails.find(match).sort({ createdAt: -1 });
+    // Get the total number of matching records
+    const totalRecords = await CallDetails.countDocuments(match);
+    if (totalRecords === 0) {
+      return res.status(404).json({
+        message: "No records found matching the criteria.",
+      });
+    }
 
+    // Fetch data in batches
+    const batch = await CallDetails.find(match)
+      .sort({ createdAt: -1 })
+      .skip(Number(skip))
+      .limit(Number(limit));
+
+    // Return the batch data
     return res.status(200).json({
-      data: callDetails, // Return the filtered data as JSON
+      data: batch,
+      totalRecords,
     });
   } catch (error) {
     console.error("Error exporting call details:", error);
