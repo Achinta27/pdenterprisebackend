@@ -6,16 +6,29 @@ cron.schedule("0 0 * * *", async () => {
   try {
     const today = new Date();
 
-    // Update the TAT for all documents based on callDate
+    // Update the TAT for all documents based on callDate, but stop at gddate if it's set
     await CallDetails.updateMany({ callDate: { $exists: true } }, [
       {
         $set: {
           TAT: {
-            $ceil: {
-              $divide: [
-                { $subtract: [today, "$callDate"] },
-                1000 * 60 * 60 * 24, // Convert milliseconds to days
-              ],
+            $cond: {
+              if: { $ne: ["$gddate", null] }, // If gddate exists
+              then: {
+                $ceil: {
+                  $divide: [
+                    { $subtract: ["$gddate", "$callDate"] },
+                    1000 * 60 * 60 * 24, // Convert milliseconds to days
+                  ],
+                },
+              },
+              else: {
+                $ceil: {
+                  $divide: [
+                    { $subtract: [today, "$callDate"] },
+                    1000 * 60 * 60 * 24, // Convert milliseconds to days
+                  ],
+                },
+              },
             },
           },
         },

@@ -152,6 +152,12 @@ exports.loginTeamLeader = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
+    if (teamleader.activeState === "Disable") {
+      return res
+        .status(403)
+        .json({ message: "Your account is disabled, please contact support" });
+    }
+
     const isMatch = await bcrypt.compare(password, teamleader.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });

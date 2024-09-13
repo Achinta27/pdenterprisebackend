@@ -135,7 +135,8 @@ const calldetailsSchema = new mongoose.Schema({
 calldetailsSchema.pre("save", function (next) {
   const today = new Date();
   const callDate = new Date(this.callDate);
-  const tat = Math.ceil((today - callDate) / (1000 * 60 * 60 * 24)); // Calculate TAT in days
+  let tatEndDate = this.gddate ? new Date(this.gddate) : today; // Stop TAT at gddate if it exists
+  const tat = Math.ceil((tatEndDate - callDate) / (1000 * 60 * 60 * 24)); // Calculate TAT in days
   this.TAT = tat > 0 ? tat : 0; // Ensure TAT is at least 0
   next();
 });
@@ -145,9 +146,10 @@ calldetailsSchema.pre("insertMany", function (next, docs) {
   const today = new Date();
   docs.forEach((doc) => {
     if (doc.callDate) {
+      let tatEndDate = doc.gddate ? new Date(doc.gddate) : today;
       const callDate = new Date(doc.callDate);
-      const tat = Math.ceil((today - callDate) / (1000 * 60 * 60 * 24));
-      doc.TAT = tat > 0 ? tat.toString() : "1"; // Ensure TAT is at least 1
+      const tat = Math.ceil((tatEndDate - callDate) / (1000 * 60 * 60 * 24));
+      doc.TAT = tat > 0 ? tat.toString() : "0"; // Ensure TAT is at least 1
     }
   });
   next();

@@ -133,6 +133,12 @@ exports.loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
+    if (user.activeState === "Disable") {
+      return res
+        .status(403)
+        .json({ message: "Your account is disabled, please contact support" });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
