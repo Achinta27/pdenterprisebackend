@@ -7,7 +7,7 @@ const calldetailsSchema = new mongoose.Schema({
     required: true,
   },
   callDate: {
-    type: String,
+    type: Date,
     required: true,
   },
   visitdate: {
@@ -52,7 +52,8 @@ const calldetailsSchema = new mongoose.Schema({
     required: true,
   },
   TAT: {
-    type: String,
+    type: Number, // Store TAT as a number
+    default: 0,
   },
   serviceType: {
     type: String,
@@ -78,16 +79,16 @@ const calldetailsSchema = new mongoose.Schema({
     type: String,
   },
   dateofPurchase: {
-    type: String,
+    type: Date,
   },
   oduser: {
     type: String,
   },
   followupdate: {
-    type: String,
+    type: Date,
   },
   gddate: {
-    type: String,
+    type: Date,
   },
   receivefromEngineer: {
     type: String,
@@ -102,7 +103,7 @@ const calldetailsSchema = new mongoose.Schema({
     type: String,
   },
   commissionDate: {
-    type: String,
+    type: Date,
   },
   NPS: {
     type: String,
@@ -129,6 +130,27 @@ const calldetailsSchema = new mongoose.Schema({
     type: String,
   },
   createdAt: { type: Date, default: Date.now },
+});
+
+calldetailsSchema.pre("save", function (next) {
+  const today = new Date();
+  const callDate = new Date(this.callDate);
+  const tat = Math.ceil((today - callDate) / (1000 * 60 * 60 * 24)); // Calculate TAT in days
+  this.TAT = tat > 0 ? tat : 0; // Ensure TAT is at least 0
+  next();
+});
+
+// Middleware for bulk inserts (insertMany)
+calldetailsSchema.pre("insertMany", function (next, docs) {
+  const today = new Date();
+  docs.forEach((doc) => {
+    if (doc.callDate) {
+      const callDate = new Date(doc.callDate);
+      const tat = Math.ceil((today - callDate) / (1000 * 60 * 60 * 24));
+      doc.TAT = tat > 0 ? tat.toString() : "1"; // Ensure TAT is at least 1
+    }
+  });
+  next();
 });
 
 calldetailsSchema.index({ createdAt: -1, calldetailsId: 1 });

@@ -21,6 +21,8 @@ const serviceRoutes = require("./routes/serviceRoutes");
 const jobstatusRoutes = require("./routes/jobstatusRoutes");
 const calldetailsRoutes = require("./routes/calldetailsRoutes");
 
+require("./controllers/updateTATCron");
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

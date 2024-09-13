@@ -86,15 +86,18 @@ exports.getCallDetails = async (req, res) => {
       brand,
       jobStatus,
       engineer,
-      mobileNumber,
+      number,
       serviceType,
       warrantyTerms,
       commissionOw,
       noEngineer,
-      followup, // For "FollowUp" filter
+      followup,
       notClose,
-      startDate, // Start date filter
+      startDate,
       endDate,
+      sortBy,
+      chooseFollowupstartdate,
+      chooseFollowupenddate,
     } = req.query;
 
     let cacheKey = `page:${page}-limit:${limit}`;
@@ -102,7 +105,7 @@ exports.getCallDetails = async (req, res) => {
     if (brand) cacheKey += `-brand:${brand}`;
     if (jobStatus) cacheKey += `-jobStatus:${jobStatus}`;
     if (engineer) cacheKey += `-engineer:${engineer}`;
-    if (mobileNumber) cacheKey += `-mobileNumber:${mobileNumber}`;
+    if (number) cacheKey += `-number:${number}`;
     if (serviceType) cacheKey += `-serviceType:${serviceType}`;
     if (warrantyTerms) cacheKey += `-warrantyTerms:${warrantyTerms}`;
     if (commissionOw) cacheKey += `-commissionOw:${commissionOw}`;
@@ -111,6 +114,11 @@ exports.getCallDetails = async (req, res) => {
     if (notClose) cacheKey += `-notClose:${notClose}`;
     if (startDate) cacheKey += `-startdate:${startDate}`;
     if (endDate) cacheKey += `-enddate:${endDate}`;
+    if (sortBy) cacheKey += `-sortBy:${sortBy}`;
+    if (chooseFollowupstartdate)
+      cacheKey += `-chooseFollowupstartdate:${chooseFollowupstartdate}`;
+    if (chooseFollowupenddate)
+      cacheKey += `-chooseFollowupenddate:${chooseFollowupenddate}`;
 
     const cachedData = cache.get(cacheKey);
     if (cachedData) {
@@ -122,8 +130,12 @@ exports.getCallDetails = async (req, res) => {
     if (brand) match.brandName = brand;
     if (jobStatus) match.jobStatus = jobStatus;
     if (engineer) match.engineer = engineer;
-    if (mobileNumber)
-      match.contactNumber = { $regex: mobileNumber, $options: "i" };
+    if (number) {
+      match.$or = [
+        { contactNumber: { $regex: number, $options: "i" } },
+        { callNumber: { $regex: number, $options: "i" } },
+      ];
+    }
     if (serviceType) match.serviceType = serviceType;
     if (warrantyTerms) match.warrantyTerms = warrantyTerms;
 
@@ -136,7 +148,7 @@ exports.getCallDetails = async (req, res) => {
     }
 
     if (followup === "true") {
-      match.jobStatus = "FollowUp";
+      match.followupdate = { $ne: null };
     }
 
     if (notClose === "true") {
@@ -145,10 +157,10 @@ exports.getCallDetails = async (req, res) => {
 
     if (startDate && endDate) {
       const startOfDay = new Date(startDate);
-      startOfDay.setHours(0, 0, 0, 0); // Set start to local midnight
+      startOfDay.setHours(0, 0, 0, 0);
 
       const endOfDay = new Date(endDate);
-      endOfDay.setHours(23, 59, 59, 999); // Set end to just before midnight
+      endOfDay.setHours(23, 59, 59, 999);
 
       match.visitdate = {
         $gte: startOfDay,
@@ -156,23 +168,139 @@ exports.getCallDetails = async (req, res) => {
       };
     } else if (startDate) {
       const startOfDay = new Date(startDate);
-      startOfDay.setHours(0, 0, 0, 0); // Set start to local midnight
+      startOfDay.setHours(0, 0, 0, 0);
 
       match.visitdate = {
         $gte: startOfDay,
       };
     }
 
+    if (chooseFollowupstartdate && chooseFollowupenddate) {
+      // If both start and end date are provided, filter between the range
+      const startfollowupdate = new Date(
+        Date.UTC(
+          new Date(chooseFollowupstartdate).getUTCFullYear(),
+          new Date(chooseFollowupstartdate).getUTCMonth(),
+          new Date(chooseFollowupstartdate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
+
+      const endfollowupdate = new Date(
+        Date.UTC(
+          new Date(chooseFollowupenddate).getUTCFullYear(),
+          new Date(chooseFollowupenddate).getUTCMonth(),
+          new Date(chooseFollowupenddate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+
+      match.followupdate = {
+        $gte: startfollowupdate,
+        $lte: endfollowupdate,
+      };
+    } else if (chooseFollowupstartdate) {
+      // If only the start date is provided, return data only for that specific date
+      const startfollowupdate = new Date(
+        Date.UTC(
+          new Date(chooseFollowupstartdate).getUTCFullYear(),
+          new Date(chooseFollowupstartdate).getUTCMonth(),
+          new Date(chooseFollowupstartdate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
+
+      const endfollowupdate = new Date(
+        Date.UTC(
+          new Date(chooseFollowupstartdate).getUTCFullYear(),
+          new Date(chooseFollowupstartdate).getUTCMonth(),
+          new Date(chooseFollowupstartdate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+
+      match.followupdate = {
+        $gte: startfollowupdate,
+        $lte: endfollowupdate,
+      };
+    }
+
     const totalDocuments = await CallDetails.countDocuments(match);
 
-    const callDetails = await CallDetails.aggregate([
-      { $match: match }, // Apply filters
-      { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: limit },
-    ]);
+    const pipeline = [{ $match: match }];
 
-    const totalPages = Math.ceil(totalDocuments / limit); // Calculate total pages after filtering
+    // Apply sorting based on the 'sortBy' parameter
+    if (sortBy === "gddate") {
+      pipeline.push(
+        {
+          $addFields: {
+            isGddateNull: {
+              $cond: {
+                if: {
+                  $or: [{ $eq: ["$gddate", null] }, { $eq: ["$gddate", ""] }],
+                },
+                then: 1,
+                else: 0,
+              },
+            },
+          },
+        },
+        {
+          $sort: {
+            isGddateNull: -1,
+            gddate: 1,
+            createdAt: -1,
+          },
+        }
+      );
+    } else if (sortBy === "visitdate") {
+      pipeline.push(
+        {
+          $addFields: {
+            isVisitdateNull: {
+              $cond: {
+                if: {
+                  $or: [
+                    { $eq: ["$visitdate", null] },
+                    { $eq: ["$visitdate", ""] },
+                  ],
+                },
+                then: 1,
+                else: 0,
+              },
+            },
+          },
+        },
+        {
+          $sort: {
+            isVisitdateNull: -1,
+            visitdate: -1,
+            createdAt: -1,
+          },
+        }
+      );
+    } else {
+      pipeline.push({ $sort: { createdAt: -1 } });
+    }
+
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limit });
+
+    const callDetails = await CallDetails.aggregate(pipeline);
+
+    const totalPages = Math.ceil(totalDocuments / limit);
 
     const result = {
       page,
@@ -274,7 +402,7 @@ exports.updateCallDetailsPart2 = async (req, res) => {
         message: `Call Details with ID ${calldetailsId} not found`,
       });
     }
-
+    cache.flushAll();
     res.status(200).json({
       message: "Call Details Updated Successfully",
       data: updatedCallDetails,
@@ -288,19 +416,16 @@ exports.updateCallDetailsPart2 = async (req, res) => {
   }
 };
 
-// Controller for updating call details partially
 exports.updateCallDetails = async (req, res) => {
   try {
-    const { calldetailsId } = req.params; // Get the calldetailsId from URL parameters
+    const { calldetailsId } = req.params;
 
-    // Extract the fields to update from the request body
     const updateData = req.body;
 
-    // Use $set only for the fields provided in the request
     const updatedCallDetails = await CallDetails.findOneAndUpdate(
-      { calldetailsId }, // Find the document by calldetailsId
-      { $set: updateData }, // Update only the fields provided in updateData
-      { new: true, runValidators: true } // Return the updated document and run validators
+      { calldetailsId },
+      { $set: updateData },
+      { new: true, runValidators: true }
     );
 
     if (!updatedCallDetails) {
@@ -309,6 +434,8 @@ exports.updateCallDetails = async (req, res) => {
       });
     }
 
+    cache.flushAll();
+
     res.status(200).json({
       message: "Call Details Updated Successfully",
       data: updatedCallDetails,
@@ -321,6 +448,31 @@ exports.updateCallDetails = async (req, res) => {
     });
   }
 };
+
+const parseDate = (dateString) => {
+  if (!dateString) return null;
+
+  // Handle both MM-DD-YYYY and MM/DD/YYYY formats
+  const parts = dateString.split(/[-\/]/);
+
+  if (parts.length !== 3) {
+    return null; // If the date is not in the expected format, return null
+  }
+
+  const month = parseInt(parts[0], 10) - 1; // JavaScript months are 0-indexed
+  const day = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+
+  // Check if the parsed values are valid
+  if (isNaN(month) || isNaN(day) || isNaN(year)) {
+    return null; // Invalid date parts
+  }
+
+  const utcDate = new Date(Date.UTC(year, month, day, 0, 0, 0));
+
+  return utcDate;
+};
+
 exports.excelImport = async (req, res) => {
   try {
     if (!req.files || !req.files.file) {
@@ -354,8 +506,8 @@ exports.excelImport = async (req, res) => {
       const calldetailsId = await generateCalldetailsId();
       const calldetailsData = {
         calldetailsId,
-        callDate: item["callDate"]?.trim(),
-        visitdate: item["visitdate"]?.trim(),
+        callDate: parseDate(item["callDate"]?.trim()),
+        visitdate: parseDate(item["visitdate"]?.trim()),
         callNumber: item["callNumber"]?.trim(),
         brandName: item["brandName"]?.trim(),
         customerName: item["customerName"]?.trim(),
@@ -366,7 +518,6 @@ exports.excelImport = async (req, res) => {
         engineer: item["engineer"]?.trim(),
         productsName: item["productsName"]?.trim(),
         warrantyTerms: item["warrantyTerms"]?.trim(),
-        TAT: item["TAT"]?.trim(),
         serviceType: item["serviceType"]?.trim(),
         remarks: item["remarks"]?.trim(),
         parts: item["parts"]?.trim(),
@@ -374,15 +525,15 @@ exports.excelImport = async (req, res) => {
         modelNumber: item["modelNumber"]?.trim(),
         iduser: item["iduser"]?.trim(),
         closerCode: item["closerCode"]?.trim(),
-        dateofPurchase: item["dateofPurchase"]?.trim(),
+        dateofPurchase: parseDate(item["dateofPurchase"]?.trim()),
         oduser: item["oduser"]?.trim(),
-        followupdate: item["followupdate"]?.trim(),
-        gddate: item["gddate"]?.trim(),
+        followupdate: parseDate(item["followupdate"]?.trim()),
+        gddate: parseDate(item["gddate"]?.trim()),
         receivefromEngineer: item["receivefromEngineer"]?.trim(),
         amountReceived: item["amountReceived"]?.trim(),
         commissionow: item["commissionow"]?.trim(),
         serviceChange: item["serviceChange"]?.trim(),
-        commissionDate: item["commissionDate"]?.trim(),
+        commissionDate: parseDate(item["commissionDate"]?.trim()),
         NPS: item["NPS"]?.trim(),
         incentive: item["incentive"]?.trim(),
         expenses: item["expenses"]?.trim(),
@@ -476,11 +627,6 @@ exports.excelImport = async (req, res) => {
     fs.unlinkSync(filePath);
     console.error("Error processing file:", error);
     res.status(500).send({ message: "Error processing file", error });
-  } finally {
-    // Always delete the uploaded file to avoid memory issues
-    if (filePath && fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
   }
 };
 
