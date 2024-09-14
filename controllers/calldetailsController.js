@@ -53,8 +53,10 @@ exports.createCallDetails = async (req, res) => {
     const newCallDetails = new CallDetails(callDetailsData);
     await newCallDetails.save();
 
-    const updatedCallDetails = await CallDetails.find().lean();
-    cache.set("allCallDetails", updatedCallDetails);
+    const cacheKeysToInvalidate = cache
+      .keys()
+      .filter((key) => key.includes("allCallDetails") || key.includes("page:"));
+    cacheKeysToInvalidate.forEach((key) => cache.del(key));
 
     res.status(201).json({
       message: "Call Details Created Successfully",
