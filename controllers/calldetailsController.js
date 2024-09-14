@@ -42,7 +42,7 @@ const generateCalldetailsId = async () => {
 const NodeCache = require("node-cache");
 
 // Initialize in-memory cache (using NodeCache) with a TTL of 10 minutes (600 seconds)
-const cache = new NodeCache({ stdTTL: 600 });
+const cache = new NodeCache({ stdTTL: 300 });
 
 // Controller for creating a new call detail
 exports.createCallDetails = async (req, res) => {
@@ -52,7 +52,10 @@ exports.createCallDetails = async (req, res) => {
     const callDetailsData = { ...req.body, calldetailsId };
     const newCallDetails = new CallDetails(callDetailsData);
     await newCallDetails.save();
-    cache.flushAll();
+
+    const updatedCallDetails = await CallDetails.find().lean();
+    cache.set("allCallDetails", updatedCallDetails);
+
     res.status(201).json({
       message: "Call Details Created Successfully",
       data: newCallDetails,
@@ -452,7 +455,10 @@ exports.updateCallDetailsPart2 = async (req, res) => {
         message: `Call Details with ID ${calldetailsId} not found`,
       });
     }
-    cache.flushAll();
+    const cacheKeysToInvalidate = cache.keys().filter((key) => {
+      return key.includes(calldetailsId) || key.includes("page:");
+    });
+    cacheKeysToInvalidate.forEach((key) => cache.del(key));
     res.status(200).json({
       message: "Call Details Updated Successfully",
       data: updatedCallDetails,
@@ -504,7 +510,10 @@ exports.updateCallDetails = async (req, res) => {
         message: `Call Details with ID ${calldetailsId} not found`,
       });
     }
-    cache.flushAll();
+    const cacheKeysToInvalidate = cache.keys().filter((key) => {
+      return key.includes(calldetailsId) || key.includes("page:");
+    });
+    cacheKeysToInvalidate.forEach((key) => cache.del(key));
     res.status(200).json({
       message: "Call Details Updated Successfully",
       data: updatedCallDetails,
@@ -664,7 +673,10 @@ exports.excelImport = async (req, res) => {
       if (validCalldetails.length > 0) {
         try {
           const result = await CallDetails.insertMany(validCalldetails);
-          cache.flushAll();
+          const cacheKeysToInvalidate = cache.keys().filter((key) => {
+            return key.includes(calldetailsId) || key.includes("page:");
+          });
+          cacheKeysToInvalidate.forEach((key) => cache.del(key));
         } catch (insertError) {
           console.error("Error during insertion:", insertError);
           return res.status(500).send({
@@ -709,7 +721,10 @@ exports.deleteCalldetails = async (req, res) => {
     }
 
     await CallDetails.findOneAndDelete({ calldetailsId });
-    cache.flushAll();
+    const cacheKeysToInvalidate = cache.keys().filter((key) => {
+      return key.includes(calldetailsId) || key.includes("page:");
+    });
+    cacheKeysToInvalidate.forEach((key) => cache.del(key));
 
     res.status(200).json({ message: "Call deleted successfully" });
   } catch (error) {
