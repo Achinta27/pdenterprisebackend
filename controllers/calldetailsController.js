@@ -64,13 +64,15 @@ exports.createCallDetails = async (req, res) => {
     });
   } catch (error) {
     if (error.code === 11000) {
-      // This is the MongoDB duplicate key error code
-      const field = Object.keys(error.keyValue)[0]; // Get the field that caused the error
+      const field = Object.keys(error.keyValue)[0];
       const message = `${field} must be unique. The value '${error.keyValue[field]}' already exists.`;
       return res.status(400).json({
         message: "Validation Error",
         error: message,
       });
+    }
+    if (field === "contactNumber") {
+      message = "Mobile number already exists.";
     }
     console.error("Error creating call details:", error);
     res.status(500).json({
@@ -521,9 +523,20 @@ exports.updateCallDetails = async (req, res) => {
       data: updatedCallDetails,
     });
   } catch (error) {
-    console.error("Error updating call details:", error);
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyValue)[0];
+      const message = `${field} must be unique. The value '${error.keyValue[field]}' already exists.`;
+      return res.status(400).json({
+        message: "Validation Error",
+        error: message,
+      });
+    }
+    if (field === "contactNumber") {
+      message = "Mobile number already exists.";
+    }
+    console.error("Error Updating call details:", error);
     res.status(500).json({
-      message: "Error updating call details",
+      message: "Error Updating call details",
       error: error.message,
     });
   }
