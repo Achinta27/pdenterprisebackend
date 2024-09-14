@@ -156,22 +156,62 @@ exports.getCallDetails = async (req, res) => {
     }
 
     if (startDate && endDate) {
-      const startOfDay = new Date(startDate);
-      startOfDay.setHours(0, 0, 0, 0);
+      const startOfDay = new Date(
+        Date.UTC(
+          new Date(startDate).getUTCFullYear(),
+          new Date(startDate).getUTCMonth(),
+          new Date(startDate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
 
-      const endOfDay = new Date(endDate);
-      endOfDay.setHours(23, 59, 59, 999);
+      const endOfDay = new Date(
+        Date.UTC(
+          new Date(endDate).getUTCFullYear(),
+          new Date(endDate).getUTCMonth(),
+          new Date(endDate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
 
-      match.visitdate = {
+      match.callDate = {
         $gte: startOfDay,
         $lte: endOfDay,
       };
     } else if (startDate) {
-      const startOfDay = new Date(startDate);
-      startOfDay.setHours(0, 0, 0, 0);
+      const startOfDay = new Date(
+        Date.UTC(
+          new Date(startDate).getUTCFullYear(),
+          new Date(startDate).getUTCMonth(),
+          new Date(startDate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
 
-      match.visitdate = {
+      const endOfDay = new Date(
+        Date.UTC(
+          new Date(startDate).getUTCFullYear(),
+          new Date(startDate).getUTCMonth(),
+          new Date(startDate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+
+      match.callDate = {
         $gte: startOfDay,
+        $lte: endOfDay,
       };
     }
 
@@ -324,11 +364,21 @@ exports.getCallDetails = async (req, res) => {
 // Fetch unique filter options for dropdowns
 exports.fetchFilters = async (req, res) => {
   try {
-    const uniqueBrands = await CallDetails.distinct("brandName");
-    const uniqueEngineers = await CallDetails.distinct("engineer");
-    const uniqueWarrantyTerms = await CallDetails.distinct("warrantyTerms");
-    const uniqueServiceTypes = await CallDetails.distinct("serviceType");
-    const uniqueJobStatus = await CallDetails.distinct("jobStatus");
+    const uniqueBrands = await CallDetails.distinct("brandName", {
+      brandName: { $ne: "" },
+    });
+    const uniqueEngineers = await CallDetails.distinct("engineer", {
+      engineer: { $ne: "" },
+    });
+    const uniqueWarrantyTerms = await CallDetails.distinct("warrantyTerms", {
+      warrantyTerms: { $ne: "" },
+    });
+    const uniqueServiceTypes = await CallDetails.distinct("serviceType", {
+      serviceType: { $ne: "" },
+    });
+    const uniqueJobStatus = await CallDetails.distinct("jobStatus", {
+      jobStatus: { $ne: "" },
+    });
 
     const filters = {
       brands: uniqueBrands,
@@ -416,11 +466,65 @@ exports.updateCallDetailsPart2 = async (req, res) => {
   }
 };
 
+// exports.updateCallDetails = async (req, res) => {
+//   try {
+//     const { calldetailsId } = req.params;
+
+//     const updateData = req.body;
+
+//     const updatedCallDetails = await CallDetails.findOneAndUpdate(
+//       { calldetailsId },
+//       { $set: updateData },
+//       { new: true, runValidators: true }
+//     );
+
+//     if (!updatedCallDetails) {
+//       return res.status(404).json({
+//         message: `Call Details with ID ${calldetailsId} not found`,
+//       });
+//     }
+
+//     cache.flushAll();
+
+//     res.status(200).json({
+//       message: "Call Details Updated Successfully",
+//       data: updatedCallDetails,
+//     });
+//   } catch (error) {
+//     console.error("Error updating call details:", error);
+//     res.status(500).json({
+//       message: "Error updating call details",
+//       error: error.message,
+//     });
+//   }
+// };
+
 exports.updateCallDetails = async (req, res) => {
   try {
     const { calldetailsId } = req.params;
-
     const updateData = req.body;
+
+    // List of date fields to check and convert to UTC
+    const dateFields = [
+      "callDate",
+      "visitdate",
+      "dateofPurchase",
+      "followupdate",
+      "gddate",
+      "commissionDate",
+    ];
+
+    // Convert each date field to UTC
+    dateFields.forEach((field) => {
+      if (updateData[field]) {
+        // Parse the date string (assuming it's in 'YYYY-MM-DD' format)
+        const date = new Date(updateData[field]);
+        // Set the date to UTC by creating a new Date object with the same year, month, and day but in UTC
+        updateData[field] = new Date(
+          Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+        );
+      }
+    });
 
     const updatedCallDetails = await CallDetails.findOneAndUpdate(
       { calldetailsId },
@@ -433,9 +537,7 @@ exports.updateCallDetails = async (req, res) => {
         message: `Call Details with ID ${calldetailsId} not found`,
       });
     }
-
     cache.flushAll();
-
     res.status(200).json({
       message: "Call Details Updated Successfully",
       data: updatedCallDetails,

@@ -14,11 +14,28 @@ cron.schedule("0 0 * * *", async () => {
             $cond: {
               if: { $ne: ["$gddate", null] }, // If gddate exists
               then: {
-                $ceil: {
-                  $divide: [
-                    { $subtract: ["$gddate", "$callDate"] },
-                    1000 * 60 * 60 * 24, // Convert milliseconds to days
-                  ],
+                $cond: {
+                  // Check if gddate equals callDate, then TAT is 0
+                  if: { $eq: ["$gddate", "$callDate"] },
+                  then: 0,
+                  else: {
+                    $max: [
+                      0, // Ensure that TAT never goes below 0
+                      {
+                        $subtract: [
+                          {
+                            $ceil: {
+                              $divide: [
+                                { $subtract: ["$gddate", "$callDate"] },
+                                1000 * 60 * 60 * 24, // Convert milliseconds to days
+                              ],
+                            },
+                          },
+                          1, // Subtract 1 from TAT when gddate is set
+                        ],
+                      },
+                    ],
+                  },
                 },
               },
               else: {
