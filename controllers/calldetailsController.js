@@ -466,39 +466,6 @@ exports.updateCallDetailsPart2 = async (req, res) => {
   }
 };
 
-// exports.updateCallDetails = async (req, res) => {
-//   try {
-//     const { calldetailsId } = req.params;
-
-//     const updateData = req.body;
-
-//     const updatedCallDetails = await CallDetails.findOneAndUpdate(
-//       { calldetailsId },
-//       { $set: updateData },
-//       { new: true, runValidators: true }
-//     );
-
-//     if (!updatedCallDetails) {
-//       return res.status(404).json({
-//         message: `Call Details with ID ${calldetailsId} not found`,
-//       });
-//     }
-
-//     cache.flushAll();
-
-//     res.status(200).json({
-//       message: "Call Details Updated Successfully",
-//       data: updatedCallDetails,
-//     });
-//   } catch (error) {
-//     console.error("Error updating call details:", error);
-//     res.status(500).json({
-//       message: "Error updating call details",
-//       error: error.message,
-//     });
-//   }
-// };
-
 exports.updateCallDetails = async (req, res) => {
   try {
     const { calldetailsId } = req.params;
@@ -742,6 +709,7 @@ exports.deleteCalldetails = async (req, res) => {
     }
 
     await CallDetails.findOneAndDelete({ calldetailsId });
+    cache.flushAll();
 
     res.status(200).json({ message: "Call deleted successfully" });
   } catch (error) {
