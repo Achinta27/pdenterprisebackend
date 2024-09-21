@@ -15,7 +15,6 @@ const calldetailsSchema = new mongoose.Schema({
   },
   callNumber: {
     type: String,
-    required: true,
   },
   brandName: {
     type: String,

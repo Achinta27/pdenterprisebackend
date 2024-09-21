@@ -3,7 +3,7 @@ const CallDetails = require("../models/calldetailsModel");
 const path = require("path");
 const fs = require("fs");
 const fastcsv = require("fast-csv");
-// Counter Schema for generating unique IDs
+
 const counterSchema = new mongoose.Schema({
   _id: { type: String, required: true },
   sequenceValue: { type: Number, required: true },
@@ -11,7 +11,6 @@ const counterSchema = new mongoose.Schema({
 
 const Counter = mongoose.model("Counter", counterSchema);
 
-// Function to get the next sequence value
 const getNextSequenceValue = async (sequenceName) => {
   const sequenceDocument = await Counter.findByIdAndUpdate(
     sequenceName,
@@ -21,7 +20,6 @@ const getNextSequenceValue = async (sequenceName) => {
   return sequenceDocument.sequenceValue;
 };
 
-// Function to generate a unique calldetailsId
 const generateCalldetailsId = async () => {
   let isUnique = false;
   let calldetailsId = "";
@@ -41,7 +39,6 @@ const generateCalldetailsId = async () => {
 
 const NodeCache = require("node-cache");
 
-// Initialize in-memory cache (using NodeCache) with a TTL of 10 minutes (600 seconds)
 const cache = new NodeCache({ stdTTL: 300 });
 
 // Controller for creating a new call detail
@@ -432,7 +429,7 @@ exports.getCallDetailsById = async (req, res) => {
 // Controller for updating call details with second part of data
 exports.updateCallDetailsPart2 = async (req, res) => {
   try {
-    const { calldetailsId } = req.params; // Assuming you pass calldetailsId in the route
+    const { calldetailsId } = req.params;
     const updateData = {
       receivefromEngineer: req.body.receivefromEngineer,
       amountReceived: req.body.amountReceived,
@@ -451,7 +448,7 @@ exports.updateCallDetailsPart2 = async (req, res) => {
     const updatedCallDetails = await CallDetails.findOneAndUpdate(
       { calldetailsId },
       { $set: updateData },
-      { new: true } // Return the updated document
+      { new: true }
     );
 
     if (!updatedCallDetails) {
@@ -640,7 +637,6 @@ exports.excelImport = async (req, res) => {
       if (
         !calldetailsData.calldetailsId ||
         !calldetailsData.callDate ||
-        !calldetailsData.callNumber ||
         !calldetailsData.brandName ||
         !calldetailsData.customerName ||
         !calldetailsData.productsName ||
