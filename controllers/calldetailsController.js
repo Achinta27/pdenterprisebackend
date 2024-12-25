@@ -282,6 +282,9 @@ exports.getCallDetails = async (req, res) => {
     }
 
     const totalDocuments = await CallDetails.countDocuments(match);
+    const noEngineerCount = await CallDetails.countDocuments({
+      engineer: { $in: [null, ""] },
+    });
 
     const pipeline = [{ $match: match }];
 
@@ -350,6 +353,7 @@ exports.getCallDetails = async (req, res) => {
       page,
       totalPages,
       totalDocuments,
+      noEngineerCount,
       data: callDetails,
     };
 
