@@ -15,6 +15,8 @@ const calldetailsSchema = new mongoose.Schema({
   },
   callNumber: {
     type: String,
+    required: true,
+    unique: true,
   },
   brandName: {
     type: String,
@@ -33,7 +35,6 @@ const calldetailsSchema = new mongoose.Schema({
   },
   contactNumber: {
     type: String,
-    unique: true,
     required: true,
   },
   whatsappNumber: {
