@@ -51,7 +51,7 @@ const calldetailsSchema = new mongoose.Schema({
     required: true,
   },
   TAT: {
-    type: Number, // Store TAT as a number
+    type: Number,
     default: 0,
   },
   serviceType: {
@@ -90,40 +90,40 @@ const calldetailsSchema = new mongoose.Schema({
     type: Date,
   },
   receivefromEngineer: {
-    type: String,
+    type: Number,
   },
   amountReceived: {
     type: String,
   },
   commissionow: {
-    type: String,
+    type: Number,
   },
   serviceChange: {
-    type: String,
+    type: Number,
   },
   commissionDate: {
     type: Date,
   },
   NPS: {
-    type: String,
+    type: Number,
   },
   incentive: {
-    type: String,
+    type: Number,
   },
   expenses: {
-    type: String,
+    type: Number,
   },
   approval: {
-    type: String,
+    type: Number,
   },
   totalAmount: {
     type: String,
   },
   commissioniw: {
-    type: String,
+    type: Number,
   },
   partamount: {
-    type: String,
+    type: Number,
   },
   teamleaderId: {
     type: String,

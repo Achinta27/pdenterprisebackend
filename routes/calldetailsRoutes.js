@@ -11,7 +11,7 @@ router.get("/filters", calldetailsController.fetchFilters);
 router.get("/export", calldetailsController.exportCallDetails);
 
 router.get("/get/:calldetailsId", calldetailsController.getCallDetailsById);
-router.patch("/update/:calldetailsId", calldetailsController.updateCallDetails);
+router.put("/update/:calldetailsId", calldetailsController.updateCallDetails);
 
 router.put(
   "/part2/:calldetailsId",

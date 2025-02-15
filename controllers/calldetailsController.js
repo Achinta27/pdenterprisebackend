@@ -99,6 +99,10 @@ exports.getCallDetails = async (req, res) => {
       notClose,
       startDate,
       endDate,
+      startGdDate,
+      endGdDate,
+      startVisitDate,
+      endVisitDate,
       sortBy,
       chooseFollowupstartdate,
       chooseFollowupenddate,
@@ -118,6 +122,10 @@ exports.getCallDetails = async (req, res) => {
     if (notClose) cacheKey += `-notClose:${notClose}`;
     if (startDate) cacheKey += `-startdate:${startDate}`;
     if (endDate) cacheKey += `-enddate:${endDate}`;
+    if (startGdDate) cacheKey += `-startGdDate:${startGdDate}`;
+    if (endGdDate) cacheKey += `-endGdDate:${endGdDate}`;
+    if (startVisitDate) cacheKey += `-startVisitDate:${startVisitDate}`;
+    if (endVisitDate) cacheKey += `-endVisitDate:${endVisitDate}`;
     if (sortBy) cacheKey += `-sortBy:${sortBy}`;
     if (chooseFollowupstartdate)
       cacheKey += `-chooseFollowupstartdate:${chooseFollowupstartdate}`;
@@ -138,6 +146,7 @@ exports.getCallDetails = async (req, res) => {
       match.$or = [
         { contactNumber: { $regex: number, $options: "i" } },
         { callNumber: { $regex: number, $options: "i" } },
+        { whatsappNumber: { $regex: number, $options: "i" } },
       ];
     }
     if (serviceType) match.serviceType = serviceType;
@@ -156,7 +165,7 @@ exports.getCallDetails = async (req, res) => {
     }
 
     if (notClose === "true") {
-      match.jobStatus = "Not Close";
+      match.jobStatus = { $ne: "CLOSED" };
     }
 
     if (startDate && endDate) {
@@ -216,6 +225,126 @@ exports.getCallDetails = async (req, res) => {
       match.callDate = {
         $gte: startOfDay,
         $lte: endOfDay,
+      };
+    }
+
+    if (startGdDate && endGdDate) {
+      const startOfDayGDdate = new Date(
+        Date.UTC(
+          new Date(startGdDate).getUTCFullYear(),
+          new Date(startGdDate).getUTCMonth(),
+          new Date(startGdDate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
+
+      const endOfDayGDdate = new Date(
+        Date.UTC(
+          new Date(endGdDate).getUTCFullYear(),
+          new Date(endGdDate).getUTCMonth(),
+          new Date(endGdDate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+
+      match.gddate = {
+        $gte: startOfDayGDdate,
+        $lte: endOfDayGDdate,
+      };
+    } else if (startGdDate) {
+      const startOfDayGDdate = new Date(
+        Date.UTC(
+          new Date(startGdDate).getUTCFullYear(),
+          new Date(startGdDate).getUTCMonth(),
+          new Date(startGdDate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
+
+      const endOfDayGDdate = new Date(
+        Date.UTC(
+          new Date(startGdDate).getUTCFullYear(),
+          new Date(startGdDate).getUTCMonth(),
+          new Date(startGdDate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+
+      match.gddate = {
+        $gte: startOfDayGDdate,
+        $lte: endOfDayGDdate,
+      };
+    }
+
+    if (startVisitDate && endVisitDate) {
+      const startOfDayVisitdate = new Date(
+        Date.UTC(
+          new Date(startVisitDate).getUTCFullYear(),
+          new Date(startVisitDate).getUTCMonth(),
+          new Date(startVisitDate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
+
+      const endOfDayVisitdate = new Date(
+        Date.UTC(
+          new Date(endVisitDate).getUTCFullYear(),
+          new Date(endVisitDate).getUTCMonth(),
+          new Date(endVisitDate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+
+      match.visitdate = {
+        $gte: startOfDayVisitdate,
+        $lte: endOfDayVisitdate,
+      };
+    } else if (startVisitDate) {
+      const startOfDayVisitdate = new Date(
+        Date.UTC(
+          new Date(startVisitDate).getUTCFullYear(),
+          new Date(startVisitDate).getUTCMonth(),
+          new Date(startVisitDate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
+
+      const endOfDayVisitdate = new Date(
+        Date.UTC(
+          new Date(startVisitDate).getUTCFullYear(),
+          new Date(startVisitDate).getUTCMonth(),
+          new Date(startVisitDate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+
+      match.visitdate = {
+        $gte: startOfDayVisitdate,
+        $lte: endOfDayVisitdate,
       };
     }
 
@@ -482,7 +611,6 @@ exports.updateCallDetails = async (req, res) => {
     const { calldetailsId } = req.params;
     const updateData = req.body;
 
-    // List of date fields to check and convert to UTC
     const dateFields = [
       "callDate",
       "visitdate",
@@ -492,12 +620,9 @@ exports.updateCallDetails = async (req, res) => {
       "commissionDate",
     ];
 
-    // Convert each date field to UTC
     dateFields.forEach((field) => {
       if (updateData[field]) {
-        // Parse the date string (assuming it's in 'YYYY-MM-DD' format)
         const date = new Date(updateData[field]);
-        // Set the date to UTC by creating a new Date object with the same year, month, and day but in UTC
         updateData[field] = new Date(
           Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
         );
@@ -764,6 +889,10 @@ exports.exportCallDetails = async (req, res) => {
       notClose,
       startDate,
       endDate,
+      startGdDate,
+      endGdDate,
+      startVisitDate,
+      endVisitDate,
       skip = 0, // For pagination
       limit = 40000, // Maximum 40K records in one batch
     } = req.query;
@@ -791,26 +920,186 @@ exports.exportCallDetails = async (req, res) => {
     }
 
     if (notClose === "true") {
-      match.jobStatus = "Not Close";
+      match.jobStatus = { $ne: "CLOSED" };
     }
 
     if (startDate && endDate) {
-      const startOfDay = new Date(startDate);
-      startOfDay.setHours(0, 0, 0, 0); // Set start to local midnight
+      const startOfDay = new Date(
+        Date.UTC(
+          new Date(startDate).getUTCFullYear(),
+          new Date(startDate).getUTCMonth(),
+          new Date(startDate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
 
-      const endOfDay = new Date(endDate);
-      endOfDay.setHours(23, 59, 59, 999); // Set end to just before midnight
+      const endOfDay = new Date(
+        Date.UTC(
+          new Date(endDate).getUTCFullYear(),
+          new Date(endDate).getUTCMonth(),
+          new Date(endDate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
 
-      match.visitdate = {
+      match.callDate = {
         $gte: startOfDay,
         $lte: endOfDay,
       };
     } else if (startDate) {
-      const startOfDay = new Date(startDate);
-      startOfDay.setHours(0, 0, 0, 0); // Set start to local midnight
+      const startOfDay = new Date(
+        Date.UTC(
+          new Date(startDate).getUTCFullYear(),
+          new Date(startDate).getUTCMonth(),
+          new Date(startDate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
+
+      const endOfDay = new Date(
+        Date.UTC(
+          new Date(startDate).getUTCFullYear(),
+          new Date(startDate).getUTCMonth(),
+          new Date(startDate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+
+      match.callDate = {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      };
+    }
+
+    if (startGdDate && endGdDate) {
+      const startOfDayGDdate = new Date(
+        Date.UTC(
+          new Date(startGdDate).getUTCFullYear(),
+          new Date(startGdDate).getUTCMonth(),
+          new Date(startGdDate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
+
+      const endOfDayGDdate = new Date(
+        Date.UTC(
+          new Date(endGdDate).getUTCFullYear(),
+          new Date(endGdDate).getUTCMonth(),
+          new Date(endGdDate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+
+      match.gddate = {
+        $gte: startOfDayGDdate,
+        $lte: endOfDayGDdate,
+      };
+    } else if (startGdDate) {
+      const startOfDayGDdate = new Date(
+        Date.UTC(
+          new Date(startGdDate).getUTCFullYear(),
+          new Date(startGdDate).getUTCMonth(),
+          new Date(startGdDate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
+
+      const endOfDayGDdate = new Date(
+        Date.UTC(
+          new Date(startGdDate).getUTCFullYear(),
+          new Date(startGdDate).getUTCMonth(),
+          new Date(startGdDate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+
+      match.gddate = {
+        $gte: startOfDayGDdate,
+        $lte: endOfDayGDdate,
+      };
+    }
+
+    if (startVisitDate && endVisitDate) {
+      const startOfDayVisitdate = new Date(
+        Date.UTC(
+          new Date(startVisitDate).getUTCFullYear(),
+          new Date(startVisitDate).getUTCMonth(),
+          new Date(startVisitDate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
+
+      const endOfDayVisitdate = new Date(
+        Date.UTC(
+          new Date(endVisitDate).getUTCFullYear(),
+          new Date(endVisitDate).getUTCMonth(),
+          new Date(endVisitDate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
 
       match.visitdate = {
-        $gte: startOfDay,
+        $gte: startOfDayVisitdate,
+        $lte: endOfDayVisitdate,
+      };
+    } else if (startVisitDate) {
+      const startOfDayVisitdate = new Date(
+        Date.UTC(
+          new Date(startVisitDate).getUTCFullYear(),
+          new Date(startVisitDate).getUTCMonth(),
+          new Date(startVisitDate).getUTCDate(),
+          0,
+          0,
+          0,
+          0
+        )
+      );
+
+      const endOfDayVisitdate = new Date(
+        Date.UTC(
+          new Date(startVisitDate).getUTCFullYear(),
+          new Date(startVisitDate).getUTCMonth(),
+          new Date(startVisitDate).getUTCDate(),
+          23,
+          59,
+          59,
+          999
+        )
+      );
+
+      match.visitdate = {
+        $gte: startOfDayVisitdate,
+        $lte: endOfDayVisitdate,
       };
     }
 
