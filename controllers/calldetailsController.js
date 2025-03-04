@@ -147,6 +147,10 @@ exports.getCallDetails = async (req, res) => {
         { contactNumber: { $regex: number, $options: "i" } },
         { callNumber: { $regex: number, $options: "i" } },
         { whatsappNumber: { $regex: number, $options: "i" } },
+        { customerName: { $regex: number, $options: "i" } },
+        { modelNumber: { $regex: number, $options: "i" } },
+        { iduser: { $regex: number, $options: "i" } },
+        { oduser: { $regex: number, $options: "i" } },
       ];
     }
     if (serviceType) match.serviceType = serviceType;
