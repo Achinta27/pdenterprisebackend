@@ -27,7 +27,7 @@ const generateUserId = async () => {
 // Get all users
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({ userId: { $ne: "userId0001" } });
+    const users = await User.find();
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -148,7 +148,7 @@ exports.loginUser = async (req, res) => {
     const token = jwt.sign(
       { id: user._id.toString(), password: user.password, name: user.name },
       process.env.SECRET_KEY,
-      { expiresIn: "1h" }
+      { expiresIn: "30d" }
     );
 
     res.status(200).json({ user, token, name: user.name });

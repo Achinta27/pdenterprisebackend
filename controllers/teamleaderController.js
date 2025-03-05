@@ -170,7 +170,7 @@ exports.loginTeamLeader = async (req, res) => {
         name: teamleader.teamleadername,
       },
       process.env.SECRET_KEY,
-      { expiresIn: "1h" }
+      { expiresIn: "30d" }
     );
 
     res.status(200).json({
@@ -178,7 +178,7 @@ exports.loginTeamLeader = async (req, res) => {
       token,
       name: teamleader.teamleadername,
       role: teamleader.designation,
-      id: teamleader.teamleaderId,
+      teamleaderId: teamleader.teamleaderId,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
