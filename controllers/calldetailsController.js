@@ -106,6 +106,7 @@ exports.getCallDetails = async (req, res) => {
       sortBy,
       chooseFollowupstartdate,
       chooseFollowupenddate,
+      amountmissmatched,
     } = req.query;
 
     let cacheKey = `page:${page}-limit:${limit}`;
@@ -117,6 +118,8 @@ exports.getCallDetails = async (req, res) => {
     if (serviceType) cacheKey += `-serviceType:${serviceType}`;
     if (warrantyTerms) cacheKey += `-warrantyTerms:${warrantyTerms}`;
     if (commissionOw) cacheKey += `-commissionOw:${commissionOw}`;
+    if (amountmissmatched)
+      cacheKey += `-amountmissmatched:${amountmissmatched}`;
     if (noEngineer) cacheKey += `-noEngineer:${noEngineer}`;
     if (followup) cacheKey += `-followup:${followup}`;
     if (notClose) cacheKey += `-notClose:${notClose}`;
@@ -170,6 +173,18 @@ exports.getCallDetails = async (req, res) => {
 
     if (notClose === "true") {
       match.jobStatus = { $ne: "CLOSED" };
+    }
+
+    if (amountmissmatched === "true") {
+      match.$or = [
+        {
+          $and: [
+            { closerCode: { $ne: "$receivefromEngineer" } },
+            { closerCode: { $ne: "" } },
+            { receivefromEngineer: { $ne: "" } },
+          ],
+        },
+      ];
     }
 
     if (startDate && endDate) {
@@ -419,6 +434,24 @@ exports.getCallDetails = async (req, res) => {
       engineer: { $in: [null, ""] },
     });
 
+    let amountMissMatchedCount = 0;
+
+    const amountMissMatchedMatch = {
+      $or: [
+        {
+          $and: [
+            { closerCode: { $ne: "$receivefromEngineer" } },
+            { closerCode: { $ne: "" } },
+            { receivefromEngineer: { $ne: "" } },
+          ],
+        },
+      ],
+    };
+
+    amountMissMatchedCount = await CallDetails.countDocuments(
+      amountMissMatchedMatch
+    );
+
     const pipeline = [{ $match: match }];
 
     // Apply sorting based on the 'sortBy' parameter
@@ -446,27 +479,82 @@ exports.getCallDetails = async (req, res) => {
         }
       );
     } else if (sortBy === "visitdate") {
+      const today = new Date();
+      const currentYear = today.getUTCFullYear();
+      const currentDateISO = today.toISOString().split("T")[0];
+
       pipeline.push(
         {
           $addFields: {
+            visitdateStr: {
+              $dateToString: { format: "%Y-%m-%d", date: "$visitdate" },
+            },
+            visitYear: { $year: "$visitdate" },
             isVisitdateNull: {
-              $cond: {
-                if: {
+              $cond: [
+                {
                   $or: [
                     { $eq: ["$visitdate", null] },
                     { $eq: ["$visitdate", ""] },
                   ],
                 },
-                then: 1,
-                else: 0,
+                1,
+                0,
+              ],
+            },
+            visitCategory: {
+              $switch: {
+                branches: [
+                  {
+                    case: {
+                      $eq: [
+                        {
+                          $dateToString: {
+                            format: "%Y-%m-%d",
+                            date: "$visitdate",
+                          },
+                        },
+                        currentDateISO,
+                      ],
+                    },
+                    then: 1, // today's date
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $eq: [{ $year: "$visitdate" }, currentYear] },
+                        { $gt: ["$visitdate", today] },
+                      ],
+                    },
+                    then: 2, // future in current year
+                  },
+                  {
+                    case: {
+                      $and: [
+                        { $eq: [{ $year: "$visitdate" }, currentYear] },
+                        { $lt: ["$visitdate", today] },
+                      ],
+                    },
+                    then: 3, // past in current year
+                  },
+                  {
+                    case: { $gt: [{ $year: "$visitdate" }, currentYear] },
+                    then: 4, // future other years
+                  },
+                  {
+                    case: { $lt: [{ $year: "$visitdate" }, currentYear] },
+                    then: 5, // past other years
+                  },
+                ],
+                default: 6,
               },
             },
           },
         },
         {
           $sort: {
-            isVisitdateNull: -1,
-            visitdate: -1,
+            visitCategory: 1,
+            visitdate: 1,
             createdAt: -1,
           },
         }
@@ -487,6 +575,7 @@ exports.getCallDetails = async (req, res) => {
       totalPages,
       totalDocuments,
       noEngineerCount,
+      amountMissMatchedCount,
       data: callDetails,
     };
 
