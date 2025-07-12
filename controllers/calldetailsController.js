@@ -479,81 +479,17 @@ exports.getCallDetails = async (req, res) => {
         }
       );
     } else if (sortBy === "visitdate") {
-      const today = new Date();
-      const currentYear = today.getUTCFullYear();
-      const currentDateISO = today.toISOString().split("T")[0];
-
       pipeline.push(
         {
           $addFields: {
-            visitdateStr: {
-              $dateToString: { format: "%Y-%m-%d", date: "$visitdate" },
-            },
-            visitYear: { $year: "$visitdate" },
-            isVisitdateNull: {
-              $cond: [
-                {
-                  $or: [
-                    { $eq: ["$visitdate", null] },
-                    { $eq: ["$visitdate", ""] },
-                  ],
-                },
-                1,
-                0,
-              ],
-            },
-            visitCategory: {
-              $switch: {
-                branches: [
-                  {
-                    case: {
-                      $eq: [
-                        {
-                          $dateToString: {
-                            format: "%Y-%m-%d",
-                            date: "$visitdate",
-                          },
-                        },
-                        currentDateISO,
-                      ],
-                    },
-                    then: 1, // today's date
-                  },
-                  {
-                    case: {
-                      $and: [
-                        { $eq: [{ $year: "$visitdate" }, currentYear] },
-                        { $gt: ["$visitdate", today] },
-                      ],
-                    },
-                    then: 2, // future in current year
-                  },
-                  {
-                    case: {
-                      $and: [
-                        { $eq: [{ $year: "$visitdate" }, currentYear] },
-                        { $lt: ["$visitdate", today] },
-                      ],
-                    },
-                    then: 3, // past in current year
-                  },
-                  {
-                    case: { $gt: [{ $year: "$visitdate" }, currentYear] },
-                    then: 4, // future other years
-                  },
-                  {
-                    case: { $lt: [{ $year: "$visitdate" }, currentYear] },
-                    then: 5, // past other years
-                  },
-                ],
-                default: 6,
-              },
+            isJobClosed: {
+              $cond: [{ $eq: ["$jobStatus", "CLOSED"] }, 1, 0],
             },
           },
         },
         {
           $sort: {
-            visitCategory: 1,
+            isJobClosed: 1,
             visitdate: 1,
             createdAt: -1,
           },
