@@ -483,7 +483,7 @@ exports.getCallDetails = async (req, res) => {
         {
           $addFields: {
             isJobClosed: {
-              $cond: [{ $eq: ["$jobStatus", "CLOSED"] }, 1, 0],
+              $cond: [{ $in: ["$jobStatus", ["CLOSED", "CANCEL"]] }, 1, 0],
             },
           },
         },
