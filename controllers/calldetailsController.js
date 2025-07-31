@@ -38,6 +38,7 @@ const generateCalldetailsId = async () => {
 };
 
 const NodeCache = require("node-cache");
+const engineerModel = require("../models/engineerModel");
 
 const cache = new NodeCache({ stdTTL: 300 });
 
@@ -136,6 +137,7 @@ exports.getCallDetails = async (req, res) => {
       cacheKey += `-chooseFollowupenddate:${chooseFollowupenddate}`;
 
     const cachedData = cache.get(cacheKey);
+
     if (cachedData) {
       return res.status(200).json(cachedData);
     }
@@ -144,7 +146,26 @@ exports.getCallDetails = async (req, res) => {
     if (teamleaderId) match.teamleaderId = teamleaderId;
     if (brand) match.brandName = brand;
     if (jobStatus) match.jobStatus = jobStatus;
-    if (engineer) match.engineer = engineer;
+    if (engineer) {
+      // Check if the provided 'engineer' string is a valid 24-character hex string for an ObjectId
+      if (mongoose.Types.ObjectId.isValid(engineer)) {
+        match.engineer = new mongoose.Types.ObjectId(engineer);
+      } else if (
+        engineer === "" ||
+        engineer === null ||
+        engineer === undefined ||
+        engineer === "null" ||
+        engineer === "undefined"
+      ) {
+        match.engineer = null;
+      } else {
+        console.warn(
+          `Invalid engineer ID format provided: "${engineer}". Ignoring this filter.`
+        );
+        // Optionally, you might want to send an error response to the client:
+        // return res.status(400).json({ message: "Invalid engineer ID format." });
+      }
+    }
     if (number) {
       match.$or = [
         { contactNumber: { $regex: number, $options: "i" } },
@@ -154,13 +175,15 @@ exports.getCallDetails = async (req, res) => {
         { modelNumber: { $regex: number, $options: "i" } },
         { iduser: { $regex: number, $options: "i" } },
         { oduser: { $regex: number, $options: "i" } },
+        { parts: { $regex: number, $options: "i" } },
       ];
     }
     if (serviceType) match.serviceType = serviceType;
     if (warrantyTerms) match.warrantyTerms = warrantyTerms;
 
     if (noEngineer === "true") {
-      match.engineer = { $in: [null, ""] };
+      delete match.engineer;
+      match.engineer = null;
     }
 
     if (commissionOw === "true") {
@@ -431,7 +454,7 @@ exports.getCallDetails = async (req, res) => {
 
     const totalDocuments = await CallDetails.countDocuments(match);
     const noEngineerCount = await CallDetails.countDocuments({
-      engineer: { $in: [null, ""] },
+      engineer: null,
     });
 
     let amountMissMatchedCount = 0;
@@ -453,6 +476,24 @@ exports.getCallDetails = async (req, res) => {
     );
 
     const pipeline = [{ $match: match }];
+
+    pipeline.push({
+      $lookup: {
+        from: "engineernames", // Replace 'users' with the actual name of your User collection
+        localField: "engineer",
+        foreignField: "_id",
+        as: "engineer",
+      },
+    });
+
+    // Unwind the engineerDetails array to get a single engineer object (if engineer is a single reference)
+    // If engineer can be an array of engineers, you might not want to unwind or handle it differently
+    pipeline.push({
+      $unwind: {
+        path: "$engineer",
+        preserveNullAndEmptyArrays: true, // This is important to keep documents that don't have an engineer
+      },
+    });
 
     // Apply sorting based on the 'sortBy' parameter
     if (sortBy === "gddate") {
@@ -533,9 +574,6 @@ exports.fetchFilters = async (req, res) => {
     const uniqueBrands = await CallDetails.distinct("brandName", {
       brandName: { $ne: "" },
     });
-    const uniqueEngineers = await CallDetails.distinct("engineer", {
-      engineer: { $ne: "" },
-    });
     const uniqueWarrantyTerms = await CallDetails.distinct("warrantyTerms", {
       warrantyTerms: { $ne: "" },
     });
@@ -545,13 +583,20 @@ exports.fetchFilters = async (req, res) => {
     const uniqueJobStatus = await CallDetails.distinct("jobStatus", {
       jobStatus: { $ne: "" },
     });
+    const uniqueEngineerIds = await CallDetails.distinct("engineer", {
+      engineer: { $ne: null },
+    });
+
+    const uniqueEngineers = await engineerModel.find({
+      _id: { $in: uniqueEngineerIds },
+    });
 
     const filters = {
       brands: uniqueBrands,
-      engineers: uniqueEngineers,
       warrantyTerms: uniqueWarrantyTerms,
       serviceTypes: uniqueServiceTypes,
       jobStatuss: uniqueJobStatus,
+      engineers: uniqueEngineers,
     };
 
     // Send unique filter options as response
@@ -568,7 +613,18 @@ exports.fetchFilters = async (req, res) => {
 exports.getCallDetailsById = async (req, res) => {
   try {
     const { calldetailsId } = req.params;
-    const callDetail = await CallDetails.findOne({ calldetailsId }).lean();
+    const callDetail = await CallDetails.findOne({
+      $or: [
+        { calldetailsId: calldetailsId },
+        {
+          _id: mongoose.Types.ObjectId.isValid(calldetailsId)
+            ? calldetailsId
+            : null,
+        },
+      ],
+    })
+      .populate("engineer")
+      .lean();
 
     if (!callDetail) {
       return res.status(404).json({
@@ -659,7 +715,16 @@ exports.updateCallDetails = async (req, res) => {
     });
 
     const updatedCallDetails = await CallDetails.findOneAndUpdate(
-      { calldetailsId },
+      {
+        $or: [
+          { calldetailsId: calldetailsId },
+          {
+            _id: mongoose.Types.ObjectId.isValid(calldetailsId)
+              ? calldetailsId
+              : null,
+          },
+        ],
+      },
       { $set: updateData },
       { new: true, runValidators: true }
     );
@@ -679,19 +744,24 @@ exports.updateCallDetails = async (req, res) => {
     });
   } catch (error) {
     if (error.code === 11000) {
+      // Handle duplicate key errors (e.g., unique index violations)
       const field = Object.keys(error.keyValue)[0];
-      const message = `${field} must be unique. The value '${error.keyValue[field]}' already exists.`;
+      let message = `${field} must be unique. The value '${error.keyValue[field]}' already exists.`;
+
+      // Specific message for contactNumber duplicate
+      if (field === "contactNumber") {
+        message = "Mobile number already exists.";
+      }
       return res.status(400).json({
         message: "Validation Error",
         error: message,
       });
     }
-    if (field === "contactNumber") {
-      message = "Mobile number already exists.";
-    }
+
+    // Generic error handling for other issues
     console.error("Error Updating call details:", error);
     res.status(500).json({
-      message: "Error Updating call details",
+      message: "Failed to update call details due to an internal server error.",
       error: error.message,
     });
   }
@@ -722,6 +792,7 @@ const parseDate = (dateString) => {
 };
 
 exports.excelImport = async (req, res) => {
+  let filePath; // Declare filePath here to make it accessible in the outer catch block
   try {
     if (!req.files || !req.files.file) {
       console.log("No file uploaded");
@@ -735,20 +806,22 @@ exports.excelImport = async (req, res) => {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
 
-    const filePath = path.join(uploadDir, file.name);
+    filePath = path.join(uploadDir, file.name); // Assign filePath here
     await file.mv(filePath);
 
     const fileExtension = path.extname(file.name).toLowerCase();
     if (fileExtension !== ".csv") {
       console.log("Unsupported file type");
-      fs.unlinkSync(filePath);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
       return res.status(400).send({ message: "Only CSV files are supported" });
     }
 
     const validCalldetails = [];
     const duplicateNumbersInFile = [];
     const duplicateNumbersInDB = [];
-    const seenNumbers = new Set();
+    const seenNumbersInFile = new Set(); // Renamed for clarity
 
     const processRow = async (item) => {
       const calldetailsId = await generateCalldetailsId();
@@ -763,7 +836,7 @@ exports.excelImport = async (req, res) => {
         route: item["route"]?.trim(),
         contactNumber: item["contactNumber"]?.trim(),
         whatsappNumber: item["whatsappNumber"]?.trim(),
-        engineer: item["engineer"]?.trim(),
+        engineer: null, // Set engineer to null as requested
         productsName: item["productsName"]?.trim(),
         warrantyTerms: item["warrantyTerms"]?.trim(),
         serviceType: item["serviceType"]?.trim(),
@@ -805,14 +878,19 @@ exports.excelImport = async (req, res) => {
         return; // Skip rows with missing required fields
       }
 
-      // Check for duplicates in the file
-      if (seenNumbers.has(calldetailsData.contactNumber)) {
+      // Check for duplicates in the file using contactNumber
+      if (
+        calldetailsData.contactNumber &&
+        seenNumbersInFile.has(calldetailsData.contactNumber)
+      ) {
         duplicateNumbersInFile.push(calldetailsData.contactNumber);
         return;
       }
-      seenNumbers.add(calldetailsData.contactNumber);
+      if (calldetailsData.contactNumber) {
+        seenNumbersInFile.add(calldetailsData.contactNumber);
+      }
 
-      // Check for duplicates in the database
+      // Check for duplicates in the database using contactNumber
       const existingCallDetail = await CallDetails.findOne({
         contactNumber: calldetailsData.contactNumber,
       });
@@ -827,56 +905,80 @@ exports.excelImport = async (req, res) => {
     const stream = fs.createReadStream(filePath);
     const csvStream = fastcsv.parse({ headers: true, trim: true });
 
-    // Create an array of promises that represent each row being processed
     const rowProcessingPromises = [];
 
     csvStream.on("data", (row) => {
-      // Add the row processing promise to the array
-      const rowPromise = processRow(row);
-      rowProcessingPromises.push(rowPromise);
+      // Push the promise returned by processRow into the array
+      rowProcessingPromises.push(processRow(row));
     });
 
     csvStream.on("end", async () => {
+      // Wait for all row processing promises to resolve
       await Promise.all(rowProcessingPromises);
 
       if (validCalldetails.length > 0) {
         try {
           const result = await CallDetails.insertMany(validCalldetails);
+          // Invalidate cache keys related to CallDetails (e.g., all entries, or specific ones if identifiable)
+          // As calldetailsId is dynamically generated, invalidating all 'page:' keys is a good approach.
+          // If you have specific keys for single call details that you can derive, you'd invalidate those too.
           const cacheKeysToInvalidate = cache.keys().filter((key) => {
-            return key.includes(calldetailsId) || key.includes("page:");
+            return key.includes("page:"); // Invalidate all pagination-related caches
+            // If you had specific keys like 'calldetails:<id>', you could add:
+            // || validCalldetails.some(detail => key.includes(detail.calldetailsId))
           });
           cacheKeysToInvalidate.forEach((key) => cache.del(key));
+
+          console.log(`Successfully inserted ${result.length} records.`);
         } catch (insertError) {
           console.error("Error during insertion:", insertError);
+          // Ensure filePath is cleaned up even if insertion fails
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
           return res.status(500).send({
             message: "Error saving data to the database",
-            error: insertError,
+            error: insertError.message, // Send only the message for security
           });
         }
       } else {
         console.log("No valid calldetails to insert.");
       }
 
-      fs.unlinkSync(filePath);
+      // Clean up the uploaded file after processing
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
 
       return res.status(200).send({
         message: "File uploaded and data processed successfully",
+        insertedCount: validCalldetails.length,
         duplicatesInFile: duplicateNumbersInFile,
         duplicatesInDB: duplicateNumbersInDB,
       });
     });
 
     csvStream.on("error", (error) => {
-      fs.unlinkSync(filePath);
+      // Ensure filePath is cleaned up if CSV parsing fails
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
       console.error("Error during CSV file processing:", error);
-      return res.status(500).send({ message: "Error processing file", error });
+      return res
+        .status(500)
+        .send({ message: "Error processing file", error: error.message });
     });
 
     stream.pipe(csvStream);
   } catch (error) {
-    fs.unlinkSync(filePath);
-    console.error("Error processing file:", error);
-    res.status(500).send({ message: "Error processing file", error });
+    // Ensure filePath is cleaned up if any error occurs before CSV streaming starts or if mv fails
+    if (filePath && fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    console.error("Error in excelImport function:", error);
+    res
+      .status(500)
+      .send({ message: "Error processing file", error: error.message });
   }
 };
 
@@ -930,14 +1032,15 @@ exports.exportCallDetails = async (req, res) => {
     if (teamleaderId) match.teamleaderId = teamleaderId;
     if (brand) match.brandName = brand;
     if (jobStatus) match.jobStatus = jobStatus;
-    if (engineer) match.engineer = engineer;
+    if (engineer && mongoose.Types.ObjectId.isValid(engineer))
+      match.engineer = engineer;
     if (mobileNumber)
       match.contactNumber = { $regex: mobileNumber, $options: "i" };
     if (serviceType) match.serviceType = serviceType;
     if (warrantyTerms) match.warrantyTerms = warrantyTerms;
 
     if (noEngineer === "true") {
-      match.engineer = { $in: [null, ""] };
+      match.engineer = null;
     }
 
     if (commissionOw === "true") {

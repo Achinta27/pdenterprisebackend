@@ -9,4 +9,8 @@ router.get("/get", engineerController.getEngineer);
 router.put("/update/:engineerId", engineerController.updateEngineer);
 router.delete("/delete/:engineerId", engineerController.deleteEngineer);
 
+router.post("/login", engineerController.loginEngineer);
+
+router.get("/get/:id", engineerController.getEngineerById);
+
 module.exports = router;

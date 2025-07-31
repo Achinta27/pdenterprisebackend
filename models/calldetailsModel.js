@@ -41,7 +41,9 @@ const calldetailsSchema = new mongoose.Schema({
     type: String,
   },
   engineer: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "EngineerName",
+    default: null,
   },
   productsName: {
     type: String,
@@ -158,7 +160,7 @@ calldetailsSchema.pre("findOneAndUpdate", async function (next) {
   const updateData = this.getUpdate().$set;
   const today = new Date();
 
-  if (updateData.callDate || updateData.gddate) {
+  if (updateData?.callDate || updateData?.gddate) {
     const callDate = new Date(updateData.callDate || this.getQuery().callDate);
     const gddate = updateData.gddate ? new Date(updateData.gddate) : null;
 

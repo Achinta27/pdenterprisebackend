@@ -70,7 +70,13 @@ exports.createTeamleader = async (req, res) => {
 
 exports.getAllTeamLeader = async (req, res) => {
   try {
-    const teamleaders = await TeamLeader.find();
+    const { status } = req.query;
+    let filters = {};
+
+    if (status) {
+      filters = { activeState: status };
+    }
+    const teamleaders = await TeamLeader.find(filters);
     res.json(teamleaders);
   } catch (error) {
     res.status(500).json({ message: error.message });

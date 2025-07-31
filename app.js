@@ -6,6 +6,8 @@ const MongoDbConnect = require("./connection");
 require("dotenv").config();
 const dotenv = require("dotenv");
 const fileUpload = require("express-fileupload");
+const admin = require("firebase-admin");
+const path = require("path");
 
 const port = 8800;
 MongoDbConnect();
@@ -20,8 +22,29 @@ const warrantyRoutes = require("./routes/warrantyRoutes");
 const serviceRoutes = require("./routes/serviceRoutes");
 const jobstatusRoutes = require("./routes/jobstatusRoutes");
 const calldetailsRoutes = require("./routes/calldetailsRoutes");
+const notificationRoutes = require("./routes/notificationRoute");
 
 require("./controllers/updateTATCron");
+
+try {
+  const serviceAccount = require(path.resolve(
+    __dirname,
+    "./pdenterprise-engineer-firebase-adminsdk.json"
+  ));
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    // You might need to specify databaseURL if you're using Realtime Database or Firestore
+    // databaseURL: "https://<YOUR_PROJECT_ID>.firebaseio.com"
+  });
+  console.log("Firebase Admin SDK initialized successfully.");
+} catch (error) {
+  console.error("Error initializing Firebase Admin SDK:", error.message);
+  console.error(
+    "Please ensure your service account key path is correct and the file exists."
+  );
+  process.exit(1); // Exit if Firebase fails to initialize, as notifications won't work
+}
 
 app.use(cors());
 app.use(express.json());
@@ -45,6 +68,7 @@ app.use("/api/warrantytype", warrantyRoutes);
 app.use("/api/servicetype", serviceRoutes);
 app.use("/api/jobstatus", jobstatusRoutes);
 app.use("/api/calldetails", calldetailsRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.listen(port, () => {
   console.log(`Port starts on  ${port}`);
