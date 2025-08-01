@@ -47,7 +47,13 @@ exports.createCallDetails = async (req, res) => {
   try {
     const calldetailsId = await generateCalldetailsId();
 
-    const callDetailsData = { ...req.body, calldetailsId };
+    const callDetailsData = {
+      ...req.body,
+      calldetailsId,
+      engineer: mongoose.Types.ObjectId.isValid(req.body.engineer)
+        ? req.body.engineer
+        : null,
+    };
     const newCallDetails = new CallDetails(callDetailsData);
     await newCallDetails.save();
 
@@ -64,15 +70,15 @@ exports.createCallDetails = async (req, res) => {
     if (error.code === 11000) {
       const field = Object.keys(error.keyValue)[0];
       const message = `${field} must be unique. The value '${error.keyValue[field]}' already exists.`;
+      if (field === "contactNumber") {
+        message = "Mobile number already exists.";
+      }
+      console.error("Error creating call details:", error);
       return res.status(400).json({
         message: "Validation Error",
         error: message,
       });
     }
-    if (field === "contactNumber") {
-      message = "Mobile number already exists.";
-    }
-    console.error("Error creating call details:", error);
     res.status(500).json({
       message: "Error creating call details",
       error: error.message,
@@ -713,6 +719,10 @@ exports.updateCallDetails = async (req, res) => {
         );
       }
     });
+
+    if (!mongoose.Types.ObjectId.isValid(updateData.engineer)) {
+      updateData.engineer = null;
+    }
 
     const updatedCallDetails = await CallDetails.findOneAndUpdate(
       {
