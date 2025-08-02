@@ -1255,6 +1255,7 @@ exports.exportCallDetails = async (req, res) => {
 
     // Fetch data in batches
     const batch = await CallDetails.find(match)
+      .populate("engineer")
       .sort({ createdAt: -1 })
       .skip(Number(skip))
       .limit(Number(limit));
