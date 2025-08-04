@@ -114,6 +114,7 @@ exports.getCallDetails = async (req, res) => {
       chooseFollowupstartdate,
       chooseFollowupenddate,
       amountmissmatched,
+      productsName,
     } = req.query;
 
     let cacheKey = `page:${page}-limit:${limit}`;
@@ -141,6 +142,7 @@ exports.getCallDetails = async (req, res) => {
       cacheKey += `-chooseFollowupstartdate:${chooseFollowupstartdate}`;
     if (chooseFollowupenddate)
       cacheKey += `-chooseFollowupenddate:${chooseFollowupenddate}`;
+    if (productsName) cacheKey += `-productsName:${productsName}`;
 
     const cachedData = cache.get(cacheKey);
 
@@ -202,6 +204,10 @@ exports.getCallDetails = async (req, res) => {
 
     if (notClose === "true") {
       match.jobStatus = { $ne: "CLOSED" };
+    }
+
+    if (productsName) {
+      match.productsName = productsName;
     }
 
     if (amountmissmatched === "true") {
