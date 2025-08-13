@@ -1,5 +1,6 @@
 const cron = require("node-cron");
 const CallDetails = require("../models/calldetailsModel"); // Adjust the path as per your project structure
+const notificationModel = require("../models/notificationModel");
 
 // Cron job to update TAT every day at midnight
 cron.schedule("0 0 * * *", async () => {
@@ -53,5 +54,13 @@ cron.schedule("0 0 * * *", async () => {
     ]);
   } catch (error) {
     console.error("Error updating TAT in cron job:", error);
+  }
+});
+
+cron.schedule("0 0 * * *", async () => {
+  try {
+    await notificationModel.deleteMany({});
+  } catch (error) {
+    console.error("Error clearing all notifications:", error);
   }
 });
