@@ -39,6 +39,7 @@ const generateCalldetailsId = async () => {
 
 const NodeCache = require("node-cache");
 const engineerModel = require("../models/engineerModel");
+const { uploadFile, deleteFile } = require("../middlewares/cloudinary");
 
 const cache = new NodeCache({ stdTTL: 300 });
 
@@ -708,6 +709,145 @@ exports.updateCallDetails = async (req, res) => {
     const { calldetailsId } = req.params;
     const updateData = req.body;
 
+    const updatedCall = await CallDetails.findOne({
+      $or: [
+        { calldetailsId: calldetailsId },
+        {
+          _id: mongoose.Types.ObjectId.isValid(calldetailsId)
+            ? calldetailsId
+            : undefined,
+        },
+      ],
+    });
+
+    if (!updatedCall) {
+      return res.status(404).json({ message: "Call Details not found" });
+    }
+
+    if (req.files) {
+      const { service_images } = req.files;
+      if (service_images) {
+        const serviceImage = Array.isArray(service_images)
+          ? service_images
+          : [service_images];
+
+        const uploadedImages = await Promise.all(
+          serviceImage.map(async (file) => {
+            try {
+              const result = await uploadFile(file.tempFilePath, file.mimetype);
+              return {
+                public_id: result.public_id,
+                secure_url: result.secure_url,
+              };
+            } catch (error) {
+              console.error("Error uploading image:", error);
+              throw error;
+            }
+          })
+        );
+
+        if (updateData.service_images) {
+          try {
+            const existingImagesFromBody = JSON.parse(
+              updateData.service_images
+            );
+            if (Array.isArray(existingImagesFromBody)) {
+              if (existingImagesFromBody.length > 0) {
+                const imagesToDelete = updatedCall.service_images.filter(
+                  (img) =>
+                    !existingImagesFromBody.some((id) => id === img.public_id)
+                );
+                for (const img of imagesToDelete) {
+                  await deleteFile(img.public_id);
+                }
+                updateData.service_images =
+                  existingImagesFromBody.concat(uploadedImages);
+              } else if (
+                existingImagesFromBody.length === 0 ||
+                existingImagesFromBody === "[]"
+              ) {
+                if (
+                  updatedCall.service_images &&
+                  updatedCall.service_images.length > 0
+                ) {
+                  for (const img of updatedCall.service_images) {
+                    await deleteFile(img.public_id);
+                  }
+                }
+                updateData.service_images = uploadedImages;
+              }
+            }
+          } catch (error) {
+            console.error("Error deleting old images:", error);
+          }
+        } else {
+          updateData.service_images = uploadedImages;
+        }
+      } else if (updateData.service_images) {
+        try {
+          const existingImagesFromBody = JSON.parse(updateData.service_images);
+          if (Array.isArray(existingImagesFromBody)) {
+            if (existingImagesFromBody.length > 0) {
+              const imagesToDelete = updatedCall.service_images.filter(
+                (img) =>
+                  !existingImagesFromBody.some((id) => id === img.public_id)
+              );
+              for (const img of imagesToDelete) {
+                await deleteFile(img.public_id);
+              }
+              updateData.service_images = existingImagesFromBody;
+            } else if (
+              existingImagesFromBody.length === 0 ||
+              existingImagesFromBody === "[]"
+            ) {
+              if (
+                updatedCall.service_images &&
+                updatedCall.service_images.length > 0
+              ) {
+                for (const img of updatedCall.service_images) {
+                  await deleteFile(img.public_id);
+                }
+              }
+              updateData.service_images = [];
+            }
+          }
+        } catch (error) {
+          console.error("Error deleting old images:", error);
+        }
+      }
+    } else if (req.body.service_images) {
+      try {
+        const existingImagesFromBody = JSON.parse(req.body.service_images);
+        if (Array.isArray(existingImagesFromBody)) {
+          if (existingImagesFromBody.length > 0) {
+            const imagesToDelete = updatedCall.service_images.filter(
+              (img) =>
+                !existingImagesFromBody.some((id) => id === img.public_id)
+            );
+            for (const img of imagesToDelete) {
+              await deleteFile(img.public_id);
+            }
+            updateData.service_images = existingImagesFromBody;
+          } else if (
+            existingImagesFromBody.length === 0 ||
+            existingImagesFromBody === "[]"
+          ) {
+            if (
+              updatedCall.service_images &&
+              updatedCall.service_images.length > 0
+            ) {
+              for (const img of updatedCall.service_images) {
+                await deleteFile(img.public_id);
+              }
+            }
+            updateData.service_images = [];
+          }
+        }
+      } catch (error) {
+        console.error("Error deleting old images:", error);
+      }
+    }
+
     const dateFields = [
       "callDate",
       "visitdate",
@@ -726,7 +866,10 @@ exports.updateCallDetails = async (req, res) => {
       }
     });
 
-    if (!mongoose.Types.ObjectId.isValid(updateData.engineer)) {
+    if (
+      updateData.engineer &&
+      !mongoose.Types.ObjectId.isValid(updateData.engineer)
+    ) {
       updateData.engineer = null;
     }
 

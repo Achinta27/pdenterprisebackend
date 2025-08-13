@@ -132,6 +132,15 @@ const calldetailsSchema = new mongoose.Schema({
     type: String,
   },
   createdAt: { type: Date, default: Date.now },
+  service_images: {
+    type: [
+      {
+        public_id: String,
+        secure_url: String,
+      },
+    ],
+    default: [],
+  },
 });
 
 calldetailsSchema.pre("save", function (next) {
