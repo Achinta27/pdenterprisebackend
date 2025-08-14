@@ -9,22 +9,40 @@ cloudinary.config({
 
 const uploadFile = async (tempFilePath, fileType) => {
   try {
+    console.log(tempFilePath);
+    console.log(fileType);
+
     let folderName = "images";
-    let format = "jpg";
-    let resourceType = "image";
+
+    let resource_type = "image";
 
     if (fileType === "application/pdf") {
       folderName = "pdf";
-      format = "pdf";
-      resourceType = "raw";
+      resource_type = "raw";
+    } else if (fileType.startsWith("video")) {
+      folderName = "video";
+      resource_type = "video";
     }
-    // Upload the file to Cloudinary
-    const result = await cloudinary.uploader.upload(tempFilePath, {
-      folder: `pdenterprise/` + folderName,
-      resource_type: resourceType,
-      format: format,
-    });
 
+    // Upload the file to Cloudinary
+    let result;
+    if (resource_type === "image") {
+      result = await cloudinary.uploader.upload(tempFilePath, {
+        folder: `pdenterprise/` + folderName,
+        resource_type: resource_type,
+      });
+    } else {
+      result = await cloudinary.uploader.upload(
+        tempFilePath,
+        function (result) {
+          console.log(result);
+        },
+        {
+          folder: `pdenterprise/` + folderName,
+          resource_type: resource_type,
+        }
+      );
+    }
     return result; // Return the result of the upload
   } catch (error) {
     console.error("Error uploading file:", error);
