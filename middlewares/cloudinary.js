@@ -9,9 +9,6 @@ cloudinary.config({
 
 const uploadFile = async (tempFilePath, fileType) => {
   try {
-    console.log(tempFilePath);
-    console.log(fileType);
-
     let folderName = "images";
 
     let resource_type = "image";

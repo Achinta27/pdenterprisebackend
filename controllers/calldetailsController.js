@@ -734,7 +734,6 @@ exports.updateCallDetails = async (req, res) => {
         const uploadedImages = await Promise.all(
           serviceImage.map(async (file) => {
             try {
-              console.log(file);
               const result = await uploadFile(file.tempFilePath, file.mimetype);
               return {
                 public_id: result.public_id,
