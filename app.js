@@ -23,6 +23,8 @@ const serviceRoutes = require("./routes/serviceRoutes");
 const jobstatusRoutes = require("./routes/jobstatusRoutes");
 const calldetailsRoutes = require("./routes/calldetailsRoutes");
 const notificationRoutes = require("./routes/notificationRoute");
+const customerRoutes = require("./routes/customerRoutes");
+const callRequestRoutes = require("./routes/callRequestRoutes");
 
 require("./controllers/updateTATCron");
 
@@ -69,6 +71,8 @@ app.use("/api/servicetype", serviceRoutes);
 app.use("/api/jobstatus", jobstatusRoutes);
 app.use("/api/calldetails", calldetailsRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/customers", customerRoutes);
+app.use("/api/callrequests", callRequestRoutes);
 
 app.listen(port, () => {
   console.log(`Port starts on  ${port}`);

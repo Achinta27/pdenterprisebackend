@@ -1,3 +1,4 @@
 node_modules
 .env
+./tmp
 pdenterprise-engineer-firebase-adminsdk.json
