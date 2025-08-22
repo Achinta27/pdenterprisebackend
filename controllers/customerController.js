@@ -27,7 +27,7 @@ exports.createNewCustomer = async (req, res) => {
     const {
       name,
       mobile_number,
-      date_of_dirth,
+      date_of_birth,
       password,
       address,
       pincode,
@@ -60,7 +60,7 @@ exports.createNewCustomer = async (req, res) => {
       customerId,
       name,
       mobile_number,
-      date_of_dirth,
+      date_of_birth,
       password,
       photo,
       address,
@@ -190,7 +190,7 @@ exports.updateCustomer = async (req, res) => {
     const {
       name,
       mobile_number,
-      date_of_dirth,
+      date_of_birth,
       password,
       address,
       pincode,
@@ -221,7 +221,7 @@ exports.updateCustomer = async (req, res) => {
 
     customer.name = name ?? customer.name;
     customer.mobile_number = mobile_number ?? customer.mobile_number;
-    customer.date_of_dirth = date_of_dirth ?? customer.date_of_dirth;
+    customer.date_of_birth = date_of_birth ?? customer.date_of_birth;
     customer.password = password ?? customer.password;
     customer.address = address ?? customer.address;
     customer.pincode = pincode ?? customer.pincode;
@@ -290,7 +290,7 @@ exports.loginCustomer = async (req, res) => {
       { expiresIn: "30d" }
     );
 
-    res.status(200).json({ message: "Login successful", token });
+    res.status(200).json({ message: "Login successful", token, customer });
   } catch (error) {
     console.error("Error logging in Customer:", error.message);
     res.status(500).json({ message: "Error logging in Customer", error });

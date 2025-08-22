@@ -17,7 +17,7 @@ const customerSchema = new mongoose.Schema(
       unique: true,
       required: true,
     },
-    date_of_dirth: {
+    date_of_birth: {
       type: Date,
     },
     activeState: {

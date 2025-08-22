@@ -59,7 +59,8 @@ exports.getAllCallRequests = async (req, res) => {
       start_date,
       end_date,
       call_service,
-      call_status = "Pending",
+      call_status,
+      customer,
     } = req.query;
 
     const skip = (page - 1) * limit;
@@ -82,6 +83,10 @@ exports.getAllCallRequests = async (req, res) => {
 
     if (call_status) {
       query.call_status = call_status;
+    }
+
+    if (customer && mongoose.Types.ObjectId.isValid(customer)) {
+      query.customer = customer;
     }
 
     const [callRequests, totalCallRequests] = await Promise.all([
