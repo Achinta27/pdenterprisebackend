@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { uploadFile } = require("../middlewares/cloudinary");
+const { uploadFile, deleteFile } = require("../middlewares/cloudinary");
 const Customer = require("../models/customerModel");
 const jwt = require("jsonwebtoken");
 
@@ -195,6 +195,7 @@ exports.updateCustomer = async (req, res) => {
       address,
       pincode,
       area,
+      activeState,
     } = req.body;
 
     const customer = await Customer.findOne({
@@ -226,6 +227,7 @@ exports.updateCustomer = async (req, res) => {
     customer.address = address ?? customer.address;
     customer.pincode = pincode ?? customer.pincode;
     customer.area = area ?? customer.area;
+    customer.activeState = activeState ?? customer.activeState;
 
     await customer.save();
     res
@@ -253,6 +255,14 @@ exports.deleteCustomer = async (req, res) => {
         { customerId: id },
       ],
     });
+
+    if (customer.photo && customer.photo.public_id) {
+      try {
+        await deleteFile(customer.photo.public_id);
+      } catch (error) {
+        console.log(error);
+      }
+    }
 
     if (!customer) {
       return res.status(404).json({ message: "Customer not found" });
