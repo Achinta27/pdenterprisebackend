@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 
 const generateCustomerId = async () => {
   const customers = await Customer.find({}, { customerId: 1, _id: 0 }).sort({
-    engineerId: 1,
+    customerId: 1,
   });
   const customerIds = customers.map((customer) =>
     parseInt(customer.customerId.replace("customerId", ""), 10)
