@@ -72,7 +72,7 @@ exports.getAllBanners = async (req, res) => {
     const query = {};
 
     if (status) {
-      query.status = status;
+      query.status = status === "false" ? false : true;
     }
 
     if (name) {
