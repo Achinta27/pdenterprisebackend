@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
-const { uploadFile, deleteFile } = require("../middlewares/cloudinary");
 const Customer = require("../models/customerModel");
 const jwt = require("jsonwebtoken");
+const { deleteFromS3, uploadToS3 } = require("../middlewares/awsS3");
 
 const generateCustomerId = async () => {
   const customers = await Customer.find({}, { customerId: 1, _id: 0 }).sort({
@@ -42,13 +42,14 @@ exports.createNewCustomer = async (req, res) => {
 
     if (req.files && req.files.photo) {
       try {
-        const photoFile = await uploadFile(
+        const photoFile = await uploadToS3(
           req.files.photo.tempFilePath,
           req.files.photo.mimetype
         );
         photo = {
           secure_url: photoFile.secure_url,
           public_id: photoFile.public_id,
+          content_type: req.files.photo.mimetype,
         };
       } catch (error) {
         console.log(error);
@@ -207,13 +208,14 @@ exports.updateCustomer = async (req, res) => {
 
     if (req.files && req.files.photo) {
       try {
-        const photoFile = await uploadFile(
+        const photoFile = await uploadToS3(
           req.files.photo.tempFilePath,
           req.files.photo.mimetype
         );
         customer.photo = {
           secure_url: photoFile.secure_url,
           public_id: photoFile.public_id,
+          content_type: req.files.photo.mimetype,
         };
       } catch (error) {
         console.log(error);
@@ -258,7 +260,7 @@ exports.deleteCustomer = async (req, res) => {
 
     if (customer.photo && customer.photo.public_id) {
       try {
-        await deleteFile(customer.photo.public_id);
+        await deleteFromS3(customer.photo.public_id);
       } catch (error) {
         console.log(error);
       }

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const customerBanner = require("../models/customerBanner");
-const { uploadFile, deleteFile } = require("../middlewares/cloudinary");
+const { uploadToS3, deleteFromS3 } = require("../middlewares/awsS3");
 
 const generateBannerId = async () => {
   const customers = await customerBanner
@@ -30,7 +30,7 @@ exports.createCustomerBanner = async (req, res) => {
       return res.status(400).json({ error: "Banner Image is required" });
     }
 
-    const bannerFile = await uploadFile(
+    const bannerFile = await uploadToS3(
       req.files.banner_img.tempFilePath,
       req.files.banner_img.mimetype
     );
@@ -42,6 +42,7 @@ exports.createCustomerBanner = async (req, res) => {
       banner_img: {
         public_id: bannerFile.public_id,
         secure_url: bannerFile.secure_url,
+        content_type: req.files.banner_img.mimetype,
       },
     });
 
@@ -120,7 +121,7 @@ exports.deleteBanner = async (req, res) => {
     if (!banner) {
       return res.status(404).json({ message: "Banner not found" });
     }
-    await deleteFile(banner.banner_img.public_id);
+    await deleteFromS3(banner.banner_img.public_id);
     await customerBanner.findByIdAndDelete(banner._id);
     res.status(200).json({ message: "Banner deleted successfully" });
   } catch (error) {

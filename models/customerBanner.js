@@ -14,6 +14,7 @@ const customerBannerSchema = new mongoose.Schema(
       type: {
         public_id: String,
         secure_url: String,
+        content_type: String,
       },
       required: true,
     },

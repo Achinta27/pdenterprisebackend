@@ -39,7 +39,7 @@ const generateCalldetailsId = async () => {
 
 const NodeCache = require("node-cache");
 const engineerModel = require("../models/engineerModel");
-const { uploadFile, deleteFile } = require("../middlewares/cloudinary");
+const { uploadToS3, deleteFromS3 } = require("../middlewares/awsS3");
 
 const cache = new NodeCache({ stdTTL: 300 });
 
@@ -734,10 +734,11 @@ exports.updateCallDetails = async (req, res) => {
         const uploadedImages = await Promise.all(
           serviceImage.map(async (file) => {
             try {
-              const result = await uploadFile(file.tempFilePath, file.mimetype);
+              const result = await uploadToS3(file.tempFilePath, file.mimetype);
               return {
                 public_id: result.public_id,
                 secure_url: result.secure_url,
+                content_type: file.mimetype,
               };
             } catch (error) {
               console.error("Error uploading image:", error);
@@ -754,11 +755,14 @@ exports.updateCallDetails = async (req, res) => {
             if (Array.isArray(existingImagesFromBody)) {
               if (existingImagesFromBody.length > 0) {
                 const imagesToDelete = updatedCall.service_images.filter(
-                  (img) =>
-                    !existingImagesFromBody.some((id) => id === img.public_id)
+                  (img) => {
+                    return !existingImagesFromBody.some(
+                      (id) => id.public_id === img.public_id
+                    );
+                  }
                 );
                 for (const img of imagesToDelete) {
-                  await deleteFile(img.public_id);
+                  await deleteFromS3(img.public_id);
                 }
                 updateData.service_images =
                   existingImagesFromBody.concat(uploadedImages);
@@ -771,7 +775,7 @@ exports.updateCallDetails = async (req, res) => {
                   updatedCall.service_images.length > 0
                 ) {
                   for (const img of updatedCall.service_images) {
-                    await deleteFile(img.public_id);
+                    await deleteFromS3(img.public_id);
                   }
                 }
                 updateData.service_images = uploadedImages;
@@ -790,10 +794,12 @@ exports.updateCallDetails = async (req, res) => {
             if (existingImagesFromBody.length > 0) {
               const imagesToDelete = updatedCall.service_images.filter(
                 (img) =>
-                  !existingImagesFromBody.some((id) => id === img.public_id)
+                  !existingImagesFromBody.some(
+                    (id) => id.public_id === img.public_id
+                  )
               );
               for (const img of imagesToDelete) {
-                await deleteFile(img.public_id);
+                await deleteFromS3(img.public_id);
               }
               updateData.service_images = existingImagesFromBody;
             } else if (
@@ -805,7 +811,7 @@ exports.updateCallDetails = async (req, res) => {
                 updatedCall.service_images.length > 0
               ) {
                 for (const img of updatedCall.service_images) {
-                  await deleteFile(img.public_id);
+                  await deleteFromS3(img.public_id);
                 }
               }
               updateData.service_images = [];
@@ -822,10 +828,12 @@ exports.updateCallDetails = async (req, res) => {
           if (existingImagesFromBody.length > 0) {
             const imagesToDelete = updatedCall.service_images.filter(
               (img) =>
-                !existingImagesFromBody.some((id) => id === img.public_id)
+                !existingImagesFromBody.some(
+                  (id) => id.public_id === img.public_id
+                )
             );
             for (const img of imagesToDelete) {
-              await deleteFile(img.public_id);
+              await deleteFromS3(img.public_id);
             }
             updateData.service_images = existingImagesFromBody;
           } else if (
@@ -837,7 +845,7 @@ exports.updateCallDetails = async (req, res) => {
               updatedCall.service_images.length > 0
             ) {
               for (const img of updatedCall.service_images) {
-                await deleteFile(img.public_id);
+                await deleteFromS3(img.public_id);
               }
             }
             updateData.service_images = [];
