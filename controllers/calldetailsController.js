@@ -43,7 +43,7 @@ const { uploadToS3, deleteFromS3 } = require("../middlewares/awsS3");
 
 const cache = new NodeCache({ stdTTL: 300 });
 
-// Controller for creating a new call detail
+
 exports.createCallDetails = async (req, res) => {
   try {
     const calldetailsId = await generateCalldetailsId();
@@ -158,23 +158,20 @@ exports.getCallDetails = async (req, res) => {
   let jobStatusArray;
 
   if (Array.isArray(jobStatus)) {
-    // in case later you send jobStatus as array: ?jobStatus=OPEN&jobStatus=PENDING
     jobStatusArray = jobStatus;
   } else if (typeof jobStatus === "string" && jobStatus.includes(",")) {
-    // our current "OPEN,PENDING" format
     jobStatusArray = jobStatus
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
   } else {
-    // single value
     jobStatusArray = [jobStatus];
   }
 
   if (jobStatusArray.length === 1) {
-    match.jobStatus = jobStatusArray[0]; // exact match
+    match.jobStatus = jobStatusArray[0]; 
   } else {
-    match.jobStatus = { $in: jobStatusArray }; // MULTI FILTER 💥
+    match.jobStatus = { $in: jobStatusArray }; 
   }
 }
 
@@ -182,10 +179,9 @@ if (engineer) {
   let engineerIds = [];
 
   if (Array.isArray(engineer)) {
-    // If someday you send as ?engineer=id1&engineer=id2
     engineerIds = engineer;
   } else if (typeof engineer === "string" && engineer.includes(",")) {
-    // Our current "id1,id2,id3" format
+   
     engineerIds = engineer
       .split(",")
       .map((id) => id.trim())
@@ -194,7 +190,7 @@ if (engineer) {
     engineerIds = [engineer];
   }
 
-  // filter out special "null"/"undefined"
+ 
   engineerIds = engineerIds.filter(
     (id) =>
       id &&
@@ -209,7 +205,7 @@ if (engineer) {
   if (validObjectIds.length === 1) {
     match.engineer = validObjectIds[0];
   } else if (validObjectIds.length > 1) {
-    match.engineer = { $in: validObjectIds }; // ✅ MULTI ENGINEER FILTER
+    match.engineer = { $in: validObjectIds }; 
   }
 }
 
