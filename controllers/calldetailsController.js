@@ -154,27 +154,65 @@ exports.getCallDetails = async (req, res) => {
     const match = {};
     if (teamleaderId) match.teamleaderId = teamleaderId;
     if (brand) match.brandName = brand;
-    if (jobStatus) match.jobStatus = jobStatus;
-    if (engineer) {
-      // Check if the provided 'engineer' string is a valid 24-character hex string for an ObjectId
-      if (mongoose.Types.ObjectId.isValid(engineer)) {
-        match.engineer = new mongoose.Types.ObjectId(engineer);
-      } else if (
-        engineer === "" ||
-        engineer === null ||
-        engineer === undefined ||
-        engineer === "null" ||
-        engineer === "undefined"
-      ) {
-        match.engineer = null;
-      } else {
-        console.warn(
-          `Invalid engineer ID format provided: "${engineer}". Ignoring this filter.`
-        );
-        // Optionally, you might want to send an error response to the client:
-        // return res.status(400).json({ message: "Invalid engineer ID format." });
-      }
-    }
+    if (jobStatus) {
+  let jobStatusArray;
+
+  if (Array.isArray(jobStatus)) {
+    // in case later you send jobStatus as array: ?jobStatus=OPEN&jobStatus=PENDING
+    jobStatusArray = jobStatus;
+  } else if (typeof jobStatus === "string" && jobStatus.includes(",")) {
+    // our current "OPEN,PENDING" format
+    jobStatusArray = jobStatus
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } else {
+    // single value
+    jobStatusArray = [jobStatus];
+  }
+
+  if (jobStatusArray.length === 1) {
+    match.jobStatus = jobStatusArray[0]; // exact match
+  } else {
+    match.jobStatus = { $in: jobStatusArray }; // MULTI FILTER 💥
+  }
+}
+
+if (engineer) {
+  let engineerIds = [];
+
+  if (Array.isArray(engineer)) {
+    // If someday you send as ?engineer=id1&engineer=id2
+    engineerIds = engineer;
+  } else if (typeof engineer === "string" && engineer.includes(",")) {
+    // Our current "id1,id2,id3" format
+    engineerIds = engineer
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+  } else {
+    engineerIds = [engineer];
+  }
+
+  // filter out special "null"/"undefined"
+  engineerIds = engineerIds.filter(
+    (id) =>
+      id &&
+      id !== "null" &&
+      id !== "undefined"
+  );
+
+  const validObjectIds = engineerIds
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+
+  if (validObjectIds.length === 1) {
+    match.engineer = validObjectIds[0];
+  } else if (validObjectIds.length > 1) {
+    match.engineer = { $in: validObjectIds }; // ✅ MULTI ENGINEER FILTER
+  }
+}
+
     if (number) {
       match.$or = [
         { contactNumber: { $regex: number, $options: "i" } },
