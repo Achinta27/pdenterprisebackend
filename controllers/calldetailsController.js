@@ -43,7 +43,6 @@ const { uploadToS3, deleteFromS3 } = require("../middlewares/awsS3");
 
 const cache = new NodeCache({ stdTTL: 300 });
 
-
 exports.createCallDetails = async (req, res) => {
   try {
     const calldetailsId = await generateCalldetailsId();
@@ -155,59 +154,54 @@ exports.getCallDetails = async (req, res) => {
     if (teamleaderId) match.teamleaderId = teamleaderId;
     if (brand) match.brandName = brand;
     if (jobStatus) {
-  let jobStatusArray;
+      let jobStatusArray;
 
-  if (Array.isArray(jobStatus)) {
-    jobStatusArray = jobStatus;
-  } else if (typeof jobStatus === "string" && jobStatus.includes(",")) {
-    jobStatusArray = jobStatus
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  } else {
-    jobStatusArray = [jobStatus];
-  }
+      if (Array.isArray(jobStatus)) {
+        jobStatusArray = jobStatus;
+      } else if (typeof jobStatus === "string" && jobStatus.includes(",")) {
+        jobStatusArray = jobStatus
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+      } else {
+        jobStatusArray = [jobStatus];
+      }
 
-  if (jobStatusArray.length === 1) {
-    match.jobStatus = jobStatusArray[0]; 
-  } else {
-    match.jobStatus = { $in: jobStatusArray }; 
-  }
-}
+      if (jobStatusArray.length === 1) {
+        match.jobStatus = jobStatusArray[0];
+      } else {
+        match.jobStatus = { $in: jobStatusArray };
+      }
+    }
 
-if (engineer) {
-  let engineerIds = [];
+    if (engineer) {
+      let engineerIds = [];
 
-  if (Array.isArray(engineer)) {
-    engineerIds = engineer;
-  } else if (typeof engineer === "string" && engineer.includes(",")) {
-   
-    engineerIds = engineer
-      .split(",")
-      .map((id) => id.trim())
-      .filter(Boolean);
-  } else {
-    engineerIds = [engineer];
-  }
+      if (Array.isArray(engineer)) {
+        engineerIds = engineer;
+      } else if (typeof engineer === "string" && engineer.includes(",")) {
+        engineerIds = engineer
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean);
+      } else {
+        engineerIds = [engineer];
+      }
 
- 
-  engineerIds = engineerIds.filter(
-    (id) =>
-      id &&
-      id !== "null" &&
-      id !== "undefined"
-  );
+      engineerIds = engineerIds.filter(
+        (id) => id && id !== "null" && id !== "undefined"
+      );
 
-  const validObjectIds = engineerIds
-    .filter((id) => mongoose.Types.ObjectId.isValid(id))
-    .map((id) => new mongoose.Types.ObjectId(id));
+      const validObjectIds = engineerIds
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
 
-  if (validObjectIds.length === 1) {
-    match.engineer = validObjectIds[0];
-  } else if (validObjectIds.length > 1) {
-    match.engineer = { $in: validObjectIds }; 
-  }
-}
+      if (validObjectIds.length === 1) {
+        match.engineer = validObjectIds[0];
+      } else if (validObjectIds.length > 1) {
+        match.engineer = { $in: validObjectIds };
+      }
+    }
 
     if (number) {
       match.$or = [
@@ -741,7 +735,7 @@ exports.updateCallDetailsPart2 = async (req, res) => {
 exports.updateCallDetails = async (req, res) => {
   try {
     const { calldetailsId } = req.params;
-    const updateData = req.body;
+    const updateData = req.body || {};
 
     const updatedCall = await CallDetails.findOne({
       $or: [
@@ -760,6 +754,9 @@ exports.updateCallDetails = async (req, res) => {
 
     if (req.files) {
       const { service_images } = req.files;
+
+      updateData.service_images = updateData.service_images || [];
+
       if (service_images) {
         const serviceImage = Array.isArray(service_images)
           ? service_images
@@ -781,7 +778,7 @@ exports.updateCallDetails = async (req, res) => {
           })
         );
 
-        if (updateData.service_images) {
+        if (updateData.service_images && updateData.service_images.length > 0) {
           try {
             const existingImagesFromBody = JSON.parse(
               updateData.service_images
