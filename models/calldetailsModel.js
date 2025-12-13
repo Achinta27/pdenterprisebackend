@@ -163,7 +163,9 @@ calldetailsSchema.pre("save", function (next) {
   }
 
   this.TAT = tat >= 0 ? tat : 0; // Ensure TAT is at least 0
-  next();
+  if (next && typeof next === "function") {
+    next();
+  }
 });
 
 calldetailsSchema.pre("findOneAndUpdate", async function (next) {
@@ -191,7 +193,9 @@ calldetailsSchema.pre("findOneAndUpdate", async function (next) {
     // Update the TAT in the update query
     this.setUpdate({ $set: { ...updateData, TAT: tat } });
   }
-  next();
+  if (next && typeof next === "function") {
+    next();
+  }
 });
 
 // Middleware for bulk inserts (insertMany)
@@ -213,7 +217,9 @@ calldetailsSchema.pre("insertMany", function (next, docs) {
     }
   });
 
-  next();
+  if (next && typeof next === "function") {
+    next();
+  }
 });
 
 calldetailsSchema.index({ createdAt: -1, calldetailsId: 1 });
