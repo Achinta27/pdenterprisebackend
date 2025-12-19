@@ -43,22 +43,15 @@ const teamSchema = new mongoose.Schema(
 );
 
 // Pre-save middleware to hash password
-teamSchema.pre("save", async function (next) {
+teamSchema.pre("save", async function () {
   if (!this.isModified("password")) {
-    if (next && typeof next === "function") {
-      return next();
-    }
+    return;
   }
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    if (next && typeof next === "function") {
-      next();
-    }
   } catch (err) {
-    if (next && typeof next === "function") {
-      next(err);
-    }
+    console.log(err);
   }
 });
 const TeamLeader = mongoose.model("TeamLeader", teamSchema);

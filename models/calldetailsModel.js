@@ -144,7 +144,7 @@ const calldetailsSchema = new mongoose.Schema({
   },
 });
 
-calldetailsSchema.pre("save", function (next) {
+calldetailsSchema.pre("save", function () {
   const today = new Date();
   const callDate = new Date(this.callDate);
 
@@ -163,12 +163,9 @@ calldetailsSchema.pre("save", function (next) {
   }
 
   this.TAT = tat >= 0 ? tat : 0; // Ensure TAT is at least 0
-  if (next && typeof next === "function") {
-    next();
-  }
 });
 
-calldetailsSchema.pre("findOneAndUpdate", async function (next) {
+calldetailsSchema.pre("findOneAndUpdate", async function () {
   const updateData = this.getUpdate().$set;
   const today = new Date();
 
@@ -193,13 +190,10 @@ calldetailsSchema.pre("findOneAndUpdate", async function (next) {
     // Update the TAT in the update query
     this.setUpdate({ $set: { ...updateData, TAT: tat } });
   }
-  if (next && typeof next === "function") {
-    next();
-  }
 });
 
 // Middleware for bulk inserts (insertMany)
-calldetailsSchema.pre("insertMany", function (next, docs) {
+calldetailsSchema.pre("insertMany", function ( docs) {
   const today = new Date();
 
   docs.forEach((doc) => {
@@ -216,10 +210,6 @@ calldetailsSchema.pre("insertMany", function (next, docs) {
       doc.TAT = tat >= 0 ? tat.toString() : "0"; // Ensure TAT is at least 0
     }
   });
-
-  if (next && typeof next === "function") {
-    next();
-  }
 });
 
 calldetailsSchema.index({ createdAt: -1, calldetailsId: 1 });

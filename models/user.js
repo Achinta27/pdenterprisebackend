@@ -37,22 +37,15 @@ const userSchema = new mongoose.Schema({
 });
 
 // Pre-save middleware to hash password
-userSchema.pre("save", async function (next) {
+userSchema.pre("save", async function () {
   if (!this.isModified("password")) {
-    if (next && typeof next === "function") {
-      return next();
-    }
+    return;
   }
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    if (next && typeof next === "function") {
-      next();
-    }
   } catch (err) {
-    if (next && typeof next === "function") {
-      next(err);
-    }
+    console.log(err);
   }
 });
 const User = mongoose.model("User", userSchema);
