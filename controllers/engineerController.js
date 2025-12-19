@@ -106,13 +106,18 @@ exports.updateEngineer = async (req, res) => {
       return res.status(404).json({ message: "Engineer not found" });
     }
 
-    engineerUpdate.engineername = engineername || engineerUpdate.engineername;
-    engineerUpdate.engineerMobilenumber =
-      engineerMobilenumber || engineerUpdate.engineerMobilenumber;
-    engineerUpdate.engineerCity = engineerCity || engineerUpdate.engineerCity;
-    engineerUpdate.activeState = activeState || engineerUpdate.activeState;
-    engineerUpdate.password = password || engineerUpdate.password;
-    engineerUpdate.apptoken = apptoken || engineerUpdate.apptoken;
+    if (engineername !== undefined) engineerUpdate.engineername = engineername;
+    if (engineerMobilenumber !== undefined)
+      engineerUpdate.engineerMobilenumber = engineerMobilenumber;
+    if (engineerCity !== undefined) engineerUpdate.engineerCity = engineerCity;
+    if (activeState !== undefined) engineerUpdate.activeState = activeState;
+    if (apptoken !== undefined) engineerUpdate.apptoken = apptoken;
+
+    // **CRITICAL: Only update password if explicitly provided**
+    if (password !== undefined && password !== "") {
+      engineerUpdate.password = password;
+      // Pre-save hook will hash it
+    }
 
     await engineerUpdate.save();
     res
