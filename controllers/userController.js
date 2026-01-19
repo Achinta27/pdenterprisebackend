@@ -3,6 +3,7 @@ const User = require("../models/user");
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 const bcrypt = require("bcryptjs");
+const { verifyOTP } = require("../middlewares/otp");
 
 dotenv.config();
 
@@ -11,7 +12,7 @@ const generateUserId = async () => {
     userId: 1,
   });
   const userIds = user.map((user) =>
-    parseInt(user.userId.replace("userId", ""), 10)
+    parseInt(user.userId.replace("userId", ""), 10),
   );
 
   let userId = 1;
@@ -67,7 +68,7 @@ exports.createUser = async (req, res) => {
     const token = jwt.sign(
       { id: savedUser._id, email: savedUser.email },
       process.env.SECRET_KEY,
-      { expiresIn: "1h" }
+      { expiresIn: "1h" },
     );
 
     // Respond with the created user and token
@@ -148,11 +149,62 @@ exports.loginUser = async (req, res) => {
     const token = jwt.sign(
       { id: user._id.toString(), password: user.password, name: user.name },
       process.env.SECRET_KEY,
-      { expiresIn: "30d" }
+      { expiresIn: "30d" },
     );
 
     res.status(200).json({ user, token, name: user.name });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.loginUserWithOTP = async (req, res) => {
+  try {
+    const { emailOrPhone, otp } = req.body;
+    const { success } = await verifyOTP({
+      otp,
+      phone: emailOrPhone,
+      type: "login",
+    });
+
+    if (!success) {
+      console.log("Invalid OTP");
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    const user = await User.findOne({
+      phone: emailOrPhone,
+    });
+
+    if (!user) {
+      console.log("Invalid credentials");
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    if (user.activeState === "Disable") {
+      console.log("Your account is disabled, please contact support");
+      return res
+        .status(403)
+        .json({ message: "Your account is disabled, please contact support" });
+    }
+
+    const token = jwt.sign(
+      {
+        id: user._id.toString(),
+        password: user.password,
+        name: user.name,
+      },
+      process.env.SECRET_KEY,
+      { expiresIn: "30d" },
+    );
+
+    res.status(200).json({
+      user,
+      token,
+      name: user.name,
+    });
+  } catch (error) {
+    console.log(error);
     res.status(500).json({ message: error.message });
   }
 };

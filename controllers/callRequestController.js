@@ -1,8 +1,9 @@
 const mongoose = require("mongoose");
 
 const CallRequest = require("../models/callRequestModel");
+const Customer = require("../models/customerModel");
 
-const generateCustomerId = async () => {
+const generateCallRequestId = async () => {
   const callRequests = await CallRequest.find(
     {},
     { callrequestId: 1, _id: 0 }
@@ -24,19 +25,71 @@ const generateCustomerId = async () => {
   return `callrequestId${String(callrequestId).padStart(4, "0")}`;
 };
 
+const generateCustomerId = async () => {
+  const customers = await Customer.find({}, { customerId: 1, _id: 0 }).sort({
+    customerId: 1,
+  });
+  const customerIds = customers.map((customer) =>
+    parseInt(customer.customerId.replace("customerId", ""), 10)
+  );
+
+  let customerId = 1;
+  for (let i = 0; i < customerIds.length; i++) {
+    if (customerId < customerIds[i]) {
+      break;
+    }
+    customerId++;
+  }
+
+  return `customerId${String(customerId).padStart(4, "0")}`;
+};
 exports.createCallRequest = async (req, res) => {
   try {
-    const { call_service, customer, preferred_visit_date, remarks } = req.body;
+    const {
+      call_service,
+      customer,
+      preferred_visit_date,
+      remarks,
+      name,
+      mobile_number,
+      request_type,
+    } = req.body;
 
-    const callrequestId = await generateCustomerId();
+    let requestedCustomer = null;
+    if (!customer && name && mobile_number) {
+      const findingCustomer = await Customer.findOne({
+        mobile_number,
+      });
+
+      if (findingCustomer) {
+        requestedCustomer = findingCustomer._id;
+      } else {
+        const customerId = await generateCustomerId();
+        const newCustomer = new Customer({
+          customerId,
+          name,
+          mobile_number,
+        });
+
+        const savedCustomer = await newCustomer.save();
+        requestedCustomer = savedCustomer._id;
+      }
+    } else if (customer) {
+      requestedCustomer = customer;
+    } else {
+      return res.status(400).json({ error: "Customer is required" });
+    }
+
+    const callrequestId = await generateCallRequestId();
     const newCallRequest = new CallRequest({
       callrequestId,
       call_service,
-      customer,
+      customer: requestedCustomer,
       preferred_visit_date: !isNaN(new Date(preferred_visit_date))
         ? new Date(preferred_visit_date)
         : null,
       remarks,
+      request_type,
     });
 
     const savedCallRequest = await newCallRequest.save();
@@ -61,6 +114,7 @@ exports.getAllCallRequests = async (req, res) => {
       call_service,
       call_status,
       customer,
+      request_type,
     } = req.query;
 
     const skip = (page - 1) * limit;
@@ -87,6 +141,10 @@ exports.getAllCallRequests = async (req, res) => {
 
     if (customer && mongoose.Types.ObjectId.isValid(customer)) {
       query.customer = customer;
+    }
+
+    if (request_type) {
+      query.request_type = request_type;
     }
 
     const [callRequests, totalCallRequests] = await Promise.all([
@@ -132,8 +190,13 @@ exports.getCallRequestById = async (req, res) => {
 exports.updateCallRequest = async (req, res) => {
   try {
     const { id } = req.params;
-    const { call_service, preferred_visit_date, remarks, call_status } =
-      req.body;
+    const {
+      call_service,
+      preferred_visit_date,
+      remarks,
+      call_status,
+      request_type,
+    } = req.body;
 
     const callRequest = await CallRequest.findOne({
       $or: [
@@ -152,6 +215,7 @@ exports.updateCallRequest = async (req, res) => {
       : callRequest.preferred_visit_date;
     callRequest.remarks = remarks || callRequest.remarks;
     callRequest.call_status = call_status || callRequest.call_status;
+    callRequest.request_type = request_type || callRequest.request_type;
 
     const updatedCallRequest = await callRequest.save();
     res.status(200).json({

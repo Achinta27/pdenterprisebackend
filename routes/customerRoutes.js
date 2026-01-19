@@ -6,6 +6,7 @@ const {
   deleteCustomer,
   loginCustomer,
   getCustomerById,
+  loginCustomerWithOTP,
 } = require("../controllers/customerController");
 
 const router = express.Router();
@@ -19,5 +20,7 @@ router
   .get(getCustomerById);
 
 router.post("/login", loginCustomer);
+
+router.post("/login-with-otp", loginCustomerWithOTP);
 
 module.exports = router;

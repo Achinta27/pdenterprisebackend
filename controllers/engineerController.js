@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const EngineerName = require("../models/engineerModel");
 const jwt = require("jsonwebtoken");
+const { verifyOTP } = require("../middlewares/otp");
 
 const generateEngineerId = async () => {
   const engineer = await EngineerName.find({}, { engineerId: 1, _id: 0 }).sort({
@@ -200,6 +201,49 @@ exports.getEngineerById = async (req, res) => {
     }
     res.status(200).json(user);
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.loginEngineerWithOTP = async (req, res) => {
+  try {
+    const { emailOrPhone, otp } = req.body;
+    const { success } = await verifyOTP({
+      otp,
+      phone: emailOrPhone,
+      type: "login",
+    });
+
+    if (!success) {
+      console.log("Invalid OTP");
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    const user = await EngineerName.findOne({
+      engineerMobilenumber: emailOrPhone,
+    });
+
+    if (!user) {
+      console.log("Invalid credentials");
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    if (user.activeState === "Disable") {
+      console.log("Your account is disabled, please contact support");
+      return res
+        .status(403)
+        .json({ message: "Your account is disabled, please contact support" });
+    }
+
+    const token = jwt.sign(
+      { id: user._id, name: user.name },
+      process.env.SECRET_KEY,
+      { expiresIn: "30d" }
+    );
+
+    res.status(200).json({ user, token, name: user.name });
+  } catch (error) {
+    console.log(error);
     res.status(500).json({ message: error.message });
   }
 };

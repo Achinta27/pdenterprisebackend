@@ -12,5 +12,6 @@ router.put("/users/:userId", userController.updateUser);
 router.delete("/users/delete/:userId", userController.deleteUser);
 
 router.post("/admin/login", userController.loginUser);
+router.post("/admin/login-with-otp", userController.loginUserWithOTP);
 
 module.exports = router;

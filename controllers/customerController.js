@@ -2,13 +2,14 @@ const mongoose = require("mongoose");
 const Customer = require("../models/customerModel");
 const jwt = require("jsonwebtoken");
 const { deleteFromS3, uploadToS3 } = require("../middlewares/awsS3");
+const { verifyOTP } = require("../middlewares/otp");
 
 const generateCustomerId = async () => {
   const customers = await Customer.find({}, { customerId: 1, _id: 0 }).sort({
     customerId: 1,
   });
   const customerIds = customers.map((customer) =>
-    parseInt(customer.customerId.replace("customerId", ""), 10)
+    parseInt(customer.customerId.replace("customerId", ""), 10),
   );
 
   let customerId = 1;
@@ -44,7 +45,7 @@ exports.createNewCustomer = async (req, res) => {
       try {
         const photoFile = await uploadToS3(
           req.files.photo.tempFilePath,
-          req.files.photo.mimetype
+          req.files.photo.mimetype,
         );
         photo = {
           secure_url: photoFile.secure_url,
@@ -74,7 +75,7 @@ exports.createNewCustomer = async (req, res) => {
     const token = jwt.sign(
       { _id: savedCustomer._id, name: savedCustomer.name },
       process.env.SECRET_KEY,
-      { expiresIn: "30d" }
+      { expiresIn: "30d" },
     );
     res.status(201).json({
       message: "Customer created successfully",
@@ -210,7 +211,7 @@ exports.updateCustomer = async (req, res) => {
       try {
         const photoFile = await uploadToS3(
           req.files.photo.tempFilePath,
-          req.files.photo.mimetype
+          req.files.photo.mimetype,
         );
         customer.photo = {
           secure_url: photoFile.secure_url,
@@ -299,12 +300,57 @@ exports.loginCustomer = async (req, res) => {
     const token = jwt.sign(
       { id: customer._id, name: customer.name },
       process.env.SECRET_KEY,
-      { expiresIn: "30d" }
+      { expiresIn: "30d" },
     );
 
     res.status(200).json({ message: "Login successful", token, customer });
   } catch (error) {
     console.error("Error logging in Customer:", error.message);
     res.status(500).json({ message: "Error logging in Customer", error });
+  }
+};
+
+exports.loginCustomerWithOTP = async (req, res) => {
+  try {
+    const { emailOrPhone, otp } = req.body;
+    const { success } = await verifyOTP({
+      otp,
+      phone: emailOrPhone,
+      type: "login",
+    });
+
+    if (!success) {
+      console.log("Invalid OTP");
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    const user = await Customer.findOne({
+      mobile_number: emailOrPhone,
+    });
+
+    if (!user) {
+      console.log("Invalid credentials");
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    if (!user.activeState) {
+      console.log("Your account is disabled, please contact support");
+      return res
+        .status(403)
+        .json({ message: "Your account is disabled, please contact support" });
+    }
+
+    const token = jwt.sign(
+      { id: user._id, name: user.name },
+      process.env.SECRET_KEY,
+      { expiresIn: "30d" },
+    );
+
+    res
+      .status(200)
+      .json({ customer: user, token, message: "Login successful" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: error.message });
   }
 };

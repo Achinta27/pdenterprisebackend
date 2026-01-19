@@ -12,8 +12,12 @@ router.post("/teamleader", teamleaderController.createTeamleader);
 router.put("/teamleader/:teamleaderId", teamleaderController.updateTeamleader);
 router.delete(
   "/teamleader/delete/:teamleaderId",
-  teamleaderController.deleteTeamleader
+  teamleaderController.deleteTeamleader,
 );
 router.post("/teamleader/login", teamleaderController.loginTeamLeader);
+router.post(
+  "/teamleader/login-with-otp",
+  teamleaderController.loginTeamLeaderWithOTP,
+);
 
 module.exports = router;

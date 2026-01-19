@@ -2,18 +2,19 @@ const TeamLeader = require("../models/teamleaderModel");
 const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 const bcrypt = require("bcryptjs");
+const { verifyOTP } = require("../middlewares/otp");
 
 dotenv.config();
 
 const generateTeamleaderId = async () => {
   const teamleader = await TeamLeader.find(
     {},
-    { teamleaderId: 1, _id: 0 }
+    { teamleaderId: 1, _id: 0 },
   ).sort({
     teamleaderId: 1,
   });
   const teamleaderIds = teamleader.map((teamleader) =>
-    parseInt(teamleader.teamleaderId.replace("teamleaderId", ""), 10)
+    parseInt(teamleader.teamleaderId.replace("teamleaderId", ""), 10),
   );
 
   let teamleaderId = 1;
@@ -58,7 +59,7 @@ exports.createTeamleader = async (req, res) => {
     const token = jwt.sign(
       { id: savedteamleader._id, phone: savedteamleader.phone },
       process.env.SECRET_KEY,
-      { expiresIn: "1h" }
+      { expiresIn: "1h" },
     );
 
     // Respond with the created user and token
@@ -176,7 +177,7 @@ exports.loginTeamLeader = async (req, res) => {
         name: teamleader.teamleadername,
       },
       process.env.SECRET_KEY,
-      { expiresIn: "30d" }
+      { expiresIn: "30d" },
     );
 
     res.status(200).json({
@@ -187,6 +188,59 @@ exports.loginTeamLeader = async (req, res) => {
       teamleaderId: teamleader.teamleaderId,
     });
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.loginTeamLeaderWithOTP = async (req, res) => {
+  try {
+    const { emailOrPhone, otp } = req.body;
+    const { success } = await verifyOTP({
+      otp,
+      phone: emailOrPhone,
+      type: "login",
+    });
+
+    if (!success) {
+      console.log("Invalid OTP");
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    const user = await TeamLeader.findOne({
+      phone: emailOrPhone,
+    });
+
+    if (!user) {
+      console.log("Invalid credentials");
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    if (user.activeState === "Disable") {
+      console.log("Your account is disabled, please contact support");
+      return res
+        .status(403)
+        .json({ message: "Your account is disabled, please contact support" });
+    }
+
+    const token = jwt.sign(
+      {
+        id: user._id.toString(),
+        password: user.password,
+        name: user.teamleadername,
+      },
+      process.env.SECRET_KEY,
+      { expiresIn: "30d" },
+    );
+
+    res.status(200).json({
+      teamleader: user,
+      token,
+      name: user.teamleadername,
+      role: user.designation,
+      teamleaderId: user.teamleaderId,
+    });
+  } catch (error) {
+    console.log(error);
     res.status(500).json({ message: error.message });
   }
 };

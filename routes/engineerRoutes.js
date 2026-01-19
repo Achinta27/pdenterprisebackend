@@ -10,6 +10,7 @@ router.put("/update/:engineerId", engineerController.updateEngineer);
 router.delete("/delete/:engineerId", engineerController.deleteEngineer);
 
 router.post("/login", engineerController.loginEngineer);
+router.post("/login-with-otp", engineerController.loginEngineerWithOTP);
 
 router.get("/get/:id", engineerController.getEngineerById);
 

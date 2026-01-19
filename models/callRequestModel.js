@@ -22,6 +22,19 @@ const callRequestSchema = new mongoose.Schema(
       default: "Pending",
       enum: ["Pending", "Accepted", "Rejected"],
     },
+    request_type: {
+      type: String,
+      required: true,
+      default: "repair_services",
+      enum: [
+        "electronics_parts",
+        "repair_services",
+        "salon_services",
+        "sanitary_services",
+        "cleaning_services",
+        "grocery_services",
+      ],
+    },
     preferred_visit_date: {
       type: Date,
     },

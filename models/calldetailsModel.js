@@ -142,6 +142,14 @@ const calldetailsSchema = new mongoose.Schema({
     ],
     default: [],
   },
+  check_in_location: {
+    latitude: {
+      type: Number,
+    },
+    longitude: {
+      type: Number,
+    },
+  },
 });
 
 calldetailsSchema.pre("save", function () {
@@ -193,7 +201,7 @@ calldetailsSchema.pre("findOneAndUpdate", async function () {
 });
 
 // Middleware for bulk inserts (insertMany)
-calldetailsSchema.pre("insertMany", function ( docs) {
+calldetailsSchema.pre("insertMany", function (docs) {
   const today = new Date();
 
   docs.forEach((doc) => {
