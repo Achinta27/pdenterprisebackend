@@ -67,6 +67,7 @@ exports.getAllAdditionalCalls = async (req, res) => {
       status,
       start_date,
       end_date,
+      search,
       service_type,
       additional_service_type,
     } = req.query;
@@ -79,22 +80,34 @@ exports.getAllAdditionalCalls = async (req, res) => {
       query.status = status;
     }
 
+    // Fix for date filtering with $or
     if (start_date && !isNaN(new Date(start_date))) {
+      const startDate = new Date(start_date);
       query.$or = [
-        ...query.$or,
-        { createdAt: { $gte: new Date(start_date) } },
-        { requested_date: { $gte: new Date(start_date) } },
-        { visit_date: { $gte: new Date(start_date) } },
+        { createdAt: { $gte: startDate } },
+        { requested_date: { $gte: startDate } },
+        { visit_date: { $gte: startDate } },
       ];
     }
 
     if (end_date && !isNaN(new Date(end_date))) {
-      query.$or = [
-        ...query.$or,
-        { createdAt: { $lte: new Date(end_date).setHours(23, 59, 59) } },
-        { requested_date: { $lte: new Date(end_date).setHours(23, 59, 59) } },
-        { visit_date: { $lte: new Date(end_date).setHours(23, 59, 59) } },
-      ];
+      const endDate = new Date(end_date);
+      endDate.setHours(23, 59, 59, 999);
+
+      // If $or already exists (from start_date), merge conditions
+      if (query.$or) {
+        // Apply $lte to all date fields in the existing $or
+        query.$or = query.$or.map((condition) => {
+          const field = Object.keys(condition)[0];
+          return { [field]: { ...condition[field], $lte: endDate } };
+        });
+      } else {
+        query.$or = [
+          { createdAt: { $lte: endDate } },
+          { requested_date: { $lte: endDate } },
+          { visit_date: { $lte: endDate } },
+        ];
+      }
     }
 
     if (service_type) {
@@ -103,6 +116,16 @@ exports.getAllAdditionalCalls = async (req, res) => {
 
     if (additional_service_type) {
       query.additional_service_type = additional_service_type;
+    }
+
+    if (search) {
+      if (query.$or) {
+        query.$or.push({ callId: { $regex: search, $options: "i" } });
+        query.$or.push({ remarks: { $regex: search, $options: "i" } });
+      } else {
+        query.$or = [{ callId: { $regex: search, $options: "i" } }];
+        query.$or.push({ remarks: { $regex: search, $options: "i" } });
+      }
     }
 
     const sort = {};
