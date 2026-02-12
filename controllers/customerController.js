@@ -324,16 +324,21 @@ exports.loginCustomerWithOTP = async (req, res) => {
       return res.status(400).json({ message: "Invalid OTP" });
     }
 
-    const user = await Customer.findOne({
+    let user = null;
+
+    user = await Customer.findOne({
       mobile_number: emailOrPhone,
     });
 
     if (!user) {
-      console.log("Invalid credentials");
-      return res.status(400).json({ message: "Invalid credentials" });
-    }
-
-    if (!user.activeState) {
+      const customerId = await generateCustomerId();
+      user = await Customer.create({
+        customerId,
+        mobile_number: emailOrPhone,
+        name: "New User",
+        activeState: true,
+      });
+    } else if (user.activeState === false) {
       console.log("Your account is disabled, please contact support");
       return res
         .status(403)
