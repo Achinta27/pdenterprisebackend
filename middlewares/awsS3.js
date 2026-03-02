@@ -49,6 +49,8 @@ exports.uploadToS3 = async (tempFilePath, fileType, folder = "uploads") => {
 
     await s3.send(command);
 
+    fs.unlinkSync(tempFilePath);
+
     return {
       secure_url: `https://pdenterprise.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`,
       public_id: key,
