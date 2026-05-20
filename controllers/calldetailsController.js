@@ -3,6 +3,8 @@ const CallDetails = require("../models/calldetailsModel");
 const path = require("path");
 const fs = require("fs");
 const fastcsv = require("fast-csv");
+const dealerCallController = require("./dealerCallController");
+const { buildHistoryEntry } = require("../utils/historyHelper");
 
 const counterSchema = new mongoose.Schema({
   _id: { type: String, required: true },
@@ -39,6 +41,7 @@ const generateCalldetailsId = async () => {
 
 const NodeCache = require("node-cache");
 const engineerModel = require("../models/engineerModel");
+const Dealer = require("../models/dealerModel");
 const { uploadToS3, deleteFromS3 } = require("../middlewares/awsS3");
 
 const cache = new NodeCache({ stdTTL: 300 });
@@ -47,15 +50,34 @@ exports.createCallDetails = async (req, res) => {
   try {
     const calldetailsId = await generateCalldetailsId();
 
+    let dealerCallRef = null;
+    if (req.body.dealerCallId) {
+      if (mongoose.Types.ObjectId.isValid(req.body.dealerCallId)) {
+        dealerCallRef = req.body.dealerCallId;
+      } else {
+        const DealerCall = require("../models/dealerCallModel");
+        const dc = await DealerCall.findOne({ dealerCallId: req.body.dealerCallId });
+        if (dc) dealerCallRef = dc._id;
+      }
+    }
+
     const callDetailsData = {
       ...req.body,
       calldetailsId,
       engineer: mongoose.Types.ObjectId.isValid(req.body.engineer)
         ? req.body.engineer
         : null,
+      dealer: mongoose.Types.ObjectId.isValid(req.body.dealer)
+        ? req.body.dealer
+        : null,
+      dealerCallId: dealerCallRef,
     };
     const newCallDetails = new CallDetails(callDetailsData);
     await newCallDetails.save();
+
+    if (dealerCallRef) {
+      await dealerCallController.markApprovedById(dealerCallRef);
+    }
 
     const cacheKeysToInvalidate = cache
       .keys()
@@ -115,6 +137,7 @@ exports.getCallDetails = async (req, res) => {
       chooseFollowupenddate,
       amountmissmatched,
       productsName,
+      dealerId,
     } = req.query;
 
     let cacheKey = `page:${page}-limit:${limit}`;
@@ -143,6 +166,7 @@ exports.getCallDetails = async (req, res) => {
     if (chooseFollowupenddate)
       cacheKey += `-chooseFollowupenddate:${chooseFollowupenddate}`;
     if (productsName) cacheKey += `-productsName:${productsName}`;
+    if (dealerId) cacheKey += `-dealerId:${dealerId}`;
 
     const cachedData = cache.get(cacheKey);
 
@@ -200,6 +224,35 @@ exports.getCallDetails = async (req, res) => {
         match.engineer = validObjectIds[0];
       } else if (validObjectIds.length > 1) {
         match.engineer = { $in: validObjectIds };
+      }
+    }
+
+    if (dealerId) {
+      let dealerIds = [];
+
+      if (Array.isArray(dealerId)) {
+        dealerIds = dealerId;
+      } else if (typeof dealerId === "string" && dealerId.includes(",")) {
+        dealerIds = dealerId
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean);
+      } else {
+        dealerIds = [dealerId];
+      }
+
+      dealerIds = dealerIds.filter(
+        (id) => id && id !== "null" && id !== "undefined"
+      );
+
+      const validObjectIds = dealerIds
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
+
+      if (validObjectIds.length === 1) {
+        match.dealer = validObjectIds[0];
+      } else if (validObjectIds.length > 1) {
+        match.dealer = { $in: validObjectIds };
       }
     }
 
@@ -520,19 +573,33 @@ exports.getCallDetails = async (req, res) => {
 
     pipeline.push({
       $lookup: {
-        from: "engineernames", // Replace 'users' with the actual name of your User collection
+        from: "engineernames",
         localField: "engineer",
         foreignField: "_id",
         as: "engineer",
       },
     });
 
-    // Unwind the engineerDetails array to get a single engineer object (if engineer is a single reference)
-    // If engineer can be an array of engineers, you might not want to unwind or handle it differently
+    pipeline.push({
+      $lookup: {
+        from: "dealers",
+        localField: "dealer",
+        foreignField: "_id",
+        as: "dealer",
+      },
+    });
+
     pipeline.push({
       $unwind: {
         path: "$engineer",
-        preserveNullAndEmptyArrays: true, // This is important to keep documents that don't have an engineer
+        preserveNullAndEmptyArrays: true,
+      },
+    });
+
+    pipeline.push({
+      $unwind: {
+        path: "$dealer",
+        preserveNullAndEmptyArrays: true,
       },
     });
 
@@ -627,9 +694,16 @@ exports.fetchFilters = async (req, res) => {
     const uniqueEngineerIds = await CallDetails.distinct("engineer", {
       engineer: { $ne: null },
     });
+    const uniqueDealerIds = await CallDetails.distinct("dealer", {
+      dealer: { $ne: null },
+    });
 
     const uniqueEngineers = await engineerModel.find({
       _id: { $in: uniqueEngineerIds },
+    });
+
+    const uniqueDealers = await Dealer.find({
+      _id: { $in: uniqueDealerIds },
     });
 
     const filters = {
@@ -638,9 +712,9 @@ exports.fetchFilters = async (req, res) => {
       serviceTypes: uniqueServiceTypes,
       jobStatuss: uniqueJobStatus,
       engineers: uniqueEngineers,
+      dealers: uniqueDealers,
     };
 
-    // Send unique filter options as response
     res.status(200).json(filters);
   } catch (error) {
     console.error("Error fetching filter options:", error);
@@ -665,6 +739,7 @@ exports.getCallDetailsById = async (req, res) => {
       ],
     })
       .populate("engineer")
+      .populate("dealer")
       .lean();
 
     if (!callDetail) {
@@ -689,6 +764,22 @@ exports.getCallDetailsById = async (req, res) => {
 exports.updateCallDetailsPart2 = async (req, res) => {
   try {
     const { calldetailsId } = req.params;
+    let changedBy = req.body.changedBy || null;
+    if (typeof changedBy === "string") {
+      try {
+        changedBy = JSON.parse(changedBy);
+      } catch (e) {
+        console.error("Failed to parse changedBy in updateCallDetailsPart2:", e);
+      }
+    }
+    if (!changedBy && req.user) {
+      changedBy = {
+        name: req.user.name,
+        role: req.user.role,
+        userId: req.user.userId,
+      };
+    }
+
     const updateData = {
       receivefromEngineer: req.body.receivefromEngineer,
       amountReceived: req.body.amountReceived,
@@ -704,17 +795,26 @@ exports.updateCallDetailsPart2 = async (req, res) => {
       partamount: req.body.partamount,
     };
 
-    const updatedCallDetails = await CallDetails.findOneAndUpdate(
-      { calldetailsId },
-      { $set: updateData },
-      { new: true }
-    );
-
-    if (!updatedCallDetails) {
+    const existingCall = await CallDetails.findOne({ calldetailsId });
+    if (!existingCall) {
       return res.status(404).json({
         message: `Call Details with ID ${calldetailsId} not found`,
       });
     }
+
+    const historyEntry = await buildHistoryEntry(existingCall, updateData, changedBy);
+
+    const updateOps = { $set: updateData };
+    if (historyEntry) {
+      updateOps.$push = { history: historyEntry };
+    }
+
+    const updatedCallDetails = await CallDetails.findOneAndUpdate(
+      { calldetailsId },
+      updateOps,
+      { new: true }
+    );
+
     const cacheKeysToInvalidate = cache.keys().filter((key) => {
       return key.includes(calldetailsId) || key.includes("page:");
     });
@@ -905,12 +1005,38 @@ exports.updateCallDetails = async (req, res) => {
       }
     });
 
-    if (
-      updateData.engineer &&
-      !mongoose.Types.ObjectId.isValid(updateData.engineer)
-    ) {
-      updateData.engineer = null;
+    if (!updateData.dealer || updateData.dealer === "" || !mongoose.Types.ObjectId.isValid(updateData.dealer)) {
+      updateData.dealer = null;
+    } else {
+      updateData.dealer = new mongoose.Types.ObjectId(updateData.dealer);
     }
+
+    if (!updateData.engineer || updateData.engineer === "" || !mongoose.Types.ObjectId.isValid(updateData.engineer)) {
+      updateData.engineer = null;
+    } else {
+      updateData.engineer = new mongoose.Types.ObjectId(updateData.engineer);
+    }
+
+    // --- History recording ---
+    let changedBy = updateData.changedBy || null;
+    if (typeof changedBy === "string") {
+      try {
+        changedBy = JSON.parse(changedBy);
+      } catch (e) {
+        console.error("Failed to parse changedBy in updateCallDetails:", e);
+      }
+    }
+    if (!changedBy && req.user) {
+      changedBy = {
+        name: req.user.name,
+        role: req.user.role,
+        userId: req.user.userId,
+      };
+    }
+    delete updateData.changedBy;
+
+    const historyEntry = await buildHistoryEntry(updatedCall, updateData, changedBy);
+    // --- End history recording ---
 
     const updatedCallDetails = await CallDetails.findOneAndUpdate(
       {
@@ -923,7 +1049,13 @@ exports.updateCallDetails = async (req, res) => {
           },
         ],
       },
-      { $set: updateData },
+      (() => {
+        const updateOps = { $set: updateData };
+        if (historyEntry) {
+          updateOps.$push = { history: historyEntry };
+        }
+        return updateOps;
+      })(),
       { new: true, runValidators: true }
     );
 

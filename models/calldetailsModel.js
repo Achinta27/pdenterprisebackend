@@ -1,5 +1,18 @@
 const mongoose = require("mongoose");
 
+const calculateTAT = (callDate, gddate, referenceDate = new Date()) => {
+  const end = gddate ? new Date(gddate) : referenceDate;
+  const start = new Date(callDate);
+  let tat = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+  if (end.getTime() === start.getTime()) {
+    return 0;
+  }
+  if (gddate) {
+    return tat > 1 ? tat - 1 : 0;
+  }
+  return tat >= 0 ? tat : 0;
+};
+
 const calldetailsSchema = new mongoose.Schema({
   calldetailsId: {
     type: String,
@@ -43,6 +56,11 @@ const calldetailsSchema = new mongoose.Schema({
   engineer: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "EngineerName",
+    default: null,
+  },
+  dealer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Dealer",
     default: null,
   },
   productsName: {
@@ -150,74 +168,77 @@ const calldetailsSchema = new mongoose.Schema({
       type: Number,
     },
   },
+  dealerCallId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "DealerCall",
+    default: null,
+  },
+  history: {
+    type: [
+      {
+        changedBy: {
+          name: { type: String },
+          role: { type: String },
+          userId: { type: String },
+        },
+        changedAt: { type: Date, default: Date.now },
+        changes: [
+          {
+            field: { type: String },
+            oldValue: { type: mongoose.Schema.Types.Mixed },
+            newValue: { type: mongoose.Schema.Types.Mixed },
+          },
+        ],
+      },
+    ],
+    default: [],
+  },
 });
 
-calldetailsSchema.pre("save", function () {
-  const today = new Date();
-  const callDate = new Date(this.callDate);
+calldetailsSchema.pre("save", async function () {
+  this.TAT = calculateTAT(this.callDate, this.gddate);
 
-  // If gddate is set, we use it for the TAT calculation
-  let tatEndDate = this.gddate ? new Date(this.gddate) : today;
-
-  // Calculate TAT in days
-  let tat = Math.ceil((tatEndDate - callDate) / (1000 * 60 * 60 * 24)); // Difference in days
-
-  // If gddate is set, and it's the same as callDate, TAT should be 0
-  if (this.gddate && tatEndDate.getTime() === callDate.getTime()) {
-    tat = 0;
-  } else if (this.gddate) {
-    // Otherwise, reduce TAT by 1 if gddate is set and gddate is not the same as callDate
-    tat = tat > 1 ? tat - 1 : 0;
+  if (this.isNew && !this.dealer && (this.contactNumber || this.customerName)) {
+    const DealerCall = mongoose.model("DealerCall");
+    const stickyDealer = await DealerCall.findStickyDealer(this.contactNumber, this.customerName);
+    if (stickyDealer) {
+      this.dealer = stickyDealer;
+    }
   }
-
-  this.TAT = tat >= 0 ? tat : 0; // Ensure TAT is at least 0
 });
 
 calldetailsSchema.pre("findOneAndUpdate", async function () {
-  const updateData = this.getUpdate().$set;
-  const today = new Date();
-
+  const currentUpdate = this.getUpdate();
+  const updateData = currentUpdate.$set;
   if (updateData?.callDate || updateData?.gddate) {
     const callDate = new Date(updateData.callDate || this.getQuery().callDate);
     const gddate = updateData.gddate ? new Date(updateData.gddate) : null;
-
-    // Determine the tatEndDate based on whether gddate is set
-    let tatEndDate = gddate ? new Date(gddate) : today;
-
-    // Calculate TAT in days
-    let tat = Math.ceil((tatEndDate - callDate) / (1000 * 60 * 60 * 24)); // Difference in days
-
-    // If gddate is set and equals to callDate, TAT should be 0
-    if (gddate && tatEndDate.getTime() === callDate.getTime()) {
-      tat = 0;
-    } else if (gddate) {
-      // If gddate is set and not the same as callDate, subtract 1 from TAT
-      tat = tat > 1 ? tat - 1 : 0;
-    }
-
-    // Update the TAT in the update query
-    this.setUpdate({ $set: { ...updateData, TAT: tat } });
+    const { $push, ...rest } = currentUpdate;
+    this.setUpdate({
+      ...rest,
+      $set: { ...updateData, TAT: calculateTAT(callDate, gddate) },
+      ...($push ? { $push } : {}),
+    });
   }
 });
 
 // Middleware for bulk inserts (insertMany)
-calldetailsSchema.pre("insertMany", function (docs) {
+calldetailsSchema.pre("insertMany", async function (docs) {
   const today = new Date();
+  const DealerCall = mongoose.model("DealerCall");
 
-  docs.forEach((doc) => {
+  for (const doc of docs) {
     if (doc.callDate) {
-      let tatEndDate = doc.gddate ? new Date(doc.gddate) : today;
-      const callDate = new Date(doc.callDate);
-      let tat = Math.ceil((tatEndDate - callDate) / (1000 * 60 * 60 * 24));
-
-      // Reduce TAT by 1 if gddate is set
-      if (doc.gddate) {
-        tat = tat > 1 ? tat - 1 : 0;
-      }
-
-      doc.TAT = tat >= 0 ? tat.toString() : "0"; // Ensure TAT is at least 0
+      doc.TAT = calculateTAT(doc.callDate, doc.gddate, today);
     }
-  });
+
+    if (!doc.dealer && (doc.contactNumber || doc.customerName)) {
+      const stickyDealer = await DealerCall.findStickyDealer(doc.contactNumber, doc.customerName);
+      if (stickyDealer) {
+        doc.dealer = stickyDealer;
+      }
+    }
+  }
 });
 
 calldetailsSchema.index({ createdAt: -1, calldetailsId: 1 });

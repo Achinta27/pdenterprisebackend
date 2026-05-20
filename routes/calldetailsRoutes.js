@@ -1,5 +1,6 @@
 const express = require("express");
 const calldetailsController = require("../controllers/calldetailsController");
+const auth = require("../middlewares/auth");
 
 const router = express.Router();
 
@@ -11,10 +12,11 @@ router.get("/filters", calldetailsController.fetchFilters);
 router.get("/export", calldetailsController.exportCallDetails);
 
 router.get("/get/:calldetailsId", calldetailsController.getCallDetailsById);
-router.put("/update/:calldetailsId", calldetailsController.updateCallDetails);
+router.put("/update/:calldetailsId", auth, calldetailsController.updateCallDetails);
 
 router.put(
   "/part2/:calldetailsId",
+  auth,
   calldetailsController.updateCallDetailsPart2
 );
 router.delete(
