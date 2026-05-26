@@ -248,13 +248,15 @@ exports.approveCall = async (req, res) => {
     call.adminRemarks = adminRemarks || "";
     await call.save();
 
-    const dealer = await Dealer.findById(call.dealer._id);
-    await sendPushNotification(
-      dealer?.fcmToken,
-      "Call Approved ✅",
-      `Your call for ${call.customerName} has been approved.`,
-      { dealerCallId: call.dealerCallId, status: "approved" }
-    );
+    if (call.dealer?._id) {
+      const dealer = await Dealer.findById(call.dealer._id);
+      await sendPushNotification(
+        dealer?.fcmToken,
+        "Call Approved ✅",
+        `Your call for ${call.customerName} has been approved.`,
+        { dealerCallId: call.dealerCallId, status: "approved" }
+      );
+    }
 
     res.status(200).json({ message: "Call approved", call });
   } catch (error) {
@@ -287,13 +289,15 @@ exports.rejectCall = async (req, res) => {
     call.adminRemarks = adminRemarks || "";
     await call.save();
 
-    const dealer = await Dealer.findById(call.dealer._id);
-    await sendPushNotification(
-      dealer?.fcmToken,
-      "Call Rejected ❌",
-      `Your call for ${call.customerName} has been rejected.`,
-      { dealerCallId: call.dealerCallId, status: "rejected" }
-    );
+    if (call.dealer?._id) {
+      const dealer = await Dealer.findById(call.dealer._id);
+      await sendPushNotification(
+        dealer?.fcmToken,
+        "Call Rejected ❌",
+        `Your call for ${call.customerName} has been rejected.`,
+        { dealerCallId: call.dealerCallId, status: "rejected" }
+      );
+    }
 
     res.status(200).json({ message: "Call rejected", call });
   } catch (error) {

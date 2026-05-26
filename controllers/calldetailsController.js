@@ -39,6 +39,7 @@ const generateCalldetailsId = async () => {
   return calldetailsId;
 };
 
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const NodeCache = require("node-cache");
 const engineerModel = require("../models/engineerModel");
 const Dealer = require("../models/dealerModel");
@@ -257,15 +258,16 @@ exports.getCallDetails = async (req, res) => {
     }
 
     if (number) {
+      const escapedNumber = escapeRegex(number);
       match.$or = [
-        { contactNumber: { $regex: number, $options: "i" } },
-        { callNumber: { $regex: number, $options: "i" } },
-        { whatsappNumber: { $regex: number, $options: "i" } },
-        { customerName: { $regex: number, $options: "i" } },
-        { modelNumber: { $regex: number, $options: "i" } },
-        { iduser: { $regex: number, $options: "i" } },
-        { oduser: { $regex: number, $options: "i" } },
-        { parts: { $regex: number, $options: "i" } },
+        { contactNumber: { $regex: escapedNumber, $options: "i" } },
+        { callNumber: { $regex: escapedNumber, $options: "i" } },
+        { whatsappNumber: { $regex: escapedNumber, $options: "i" } },
+        { customerName: { $regex: escapedNumber, $options: "i" } },
+        { modelNumber: { $regex: escapedNumber, $options: "i" } },
+        { iduser: { $regex: escapedNumber, $options: "i" } },
+        { oduser: { $regex: escapedNumber, $options: "i" } },
+        { parts: { $regex: escapedNumber, $options: "i" } },
       ];
     }
     if (serviceType) match.serviceType = serviceType;
@@ -1365,7 +1367,7 @@ exports.exportCallDetails = async (req, res) => {
     if (engineer && mongoose.Types.ObjectId.isValid(engineer))
       match.engineer = engineer;
     if (mobileNumber)
-      match.contactNumber = { $regex: mobileNumber, $options: "i" };
+      match.contactNumber = { $regex: escapeRegex(mobileNumber), $options: "i" };
     if (serviceType) match.serviceType = serviceType;
     if (warrantyTerms) match.warrantyTerms = warrantyTerms;
 
