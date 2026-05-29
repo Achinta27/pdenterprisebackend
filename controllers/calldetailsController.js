@@ -1013,10 +1013,14 @@ exports.updateCallDetails = async (req, res) => {
       updateData.dealer = new mongoose.Types.ObjectId(updateData.dealer);
     }
 
-    if (!updateData.engineer || updateData.engineer === "" || !mongoose.Types.ObjectId.isValid(updateData.engineer)) {
-      updateData.engineer = null;
+    if ('engineer' in (req.body || {})) {
+      if (!updateData.engineer || updateData.engineer === "" || !mongoose.Types.ObjectId.isValid(updateData.engineer)) {
+        updateData.engineer = null;
+      } else {
+        updateData.engineer = new mongoose.Types.ObjectId(updateData.engineer);
+      }
     } else {
-      updateData.engineer = new mongoose.Types.ObjectId(updateData.engineer);
+      delete updateData.engineer;
     }
 
     // --- History recording ---

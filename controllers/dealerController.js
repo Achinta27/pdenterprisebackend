@@ -171,9 +171,12 @@ exports.getAllDealers = async (req, res) => {
     const filter = {};
 
     if (status) filter.status = status;
-    if (dealerCode) filter.dealerCode = { $regex: dealerCode, $options: "i" };
-    if (name) filter.name = { $regex: name, $options: "i" };
-    if (phoneNumber) filter.phoneNumber = { $regex: phoneNumber, $options: "i" };
+
+    const orConditions = [];
+    if (name) orConditions.push({ name: { $regex: name, $options: "i" } });
+    if (phoneNumber) orConditions.push({ phoneNumber: { $regex: phoneNumber, $options: "i" } });
+    if (dealerCode) orConditions.push({ dealerCode: { $regex: dealerCode, $options: "i" } });
+    if (orConditions.length > 0) filter.$or = orConditions;
 
     const skip = (page - 1) * limit;
 
